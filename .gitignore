@@ -5,8 +5,8 @@ dist/
 *.sqlite
 
 # Mac App
-apps/mac/Herald/build/
-apps/mac/Herald/*.xcuserdata
+apps/mac/AirTerm/build/
+apps/mac/AirTerm/*.xcuserdata
 *.xcworkspace
 DerivedData/
 

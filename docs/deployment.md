@@ -1,6 +1,16 @@
 # 部署指南
 
-## 中继服务器部署
+## 默认方式：使用公共中继实例（零配置）
+
+AirTerm 默认使用官方公共中继实例 `relay.airterm.dev`，**无需自行部署任何服务器**。
+
+安装 Mac App 后即可扫码配对使用。服务器采用零知识架构（E2E 加密），即使是官方实例也无法读取任何通信内容。
+
+如果你需要自主可控或有特殊网络需求，可选择自部署。
+
+---
+
+## 高级选项：自部署中继服务器
 
 ### 方式一：Docker（推荐）
 
@@ -8,14 +18,14 @@
 
 最低配置：1 核 CPU、512MB 内存、10GB 磁盘。
 
-Herald 服务器只做消息转发，资源消耗极低。
+AirTerm 服务器只做消息转发，资源消耗极低。
 
 #### 2. 部署
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-org/herald.git
-cd herald/apps/server
+git clone https://github.com/your-org/airterm.git
+cd airterm/apps/server
 
 # 配置环境变量
 cp .env.example .env
@@ -25,7 +35,7 @@ cp .env.example .env
 
 ```bash
 # 服务器域名
-DOMAIN=herald.your-domain.com
+DOMAIN=airterm.your-domain.com
 
 # JWT 密钥（必须更换为随机值）
 JWT_SECRET=your-random-secret-at-least-32-chars
@@ -37,7 +47,7 @@ PORT=3000
 PAIR_CODE_TTL=300
 
 # SQLite 数据库路径
-DB_PATH=/data/herald.db
+DB_PATH=/data/airterm.db
 ```
 
 ```bash
@@ -54,7 +64,7 @@ docker compose logs -f
 
 ```bash
 # Caddyfile
-herald.your-domain.com {
+airterm.your-domain.com {
     reverse_proxy localhost:3000
 }
 ```
@@ -71,10 +81,10 @@ sudo systemctl start caddy
 ```nginx
 server {
     listen 443 ssl;
-    server_name herald.your-domain.com;
+    server_name airterm.your-domain.com;
 
-    ssl_certificate /etc/letsencrypt/live/herald.your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/herald.your-domain.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/airterm.your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/airterm.your-domain.com/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -100,7 +110,7 @@ node dist/index.js
 
 ```bash
 npm install -g pm2
-pm2 start dist/index.js --name herald
+pm2 start dist/index.js --name airterm
 pm2 save
 pm2 startup  # 开机自启
 ```
@@ -110,15 +120,15 @@ pm2 startup  # 开机自启
 ```yaml
 # apps/server/docker-compose.yml
 services:
-  herald:
+  airterm:
     build: .
     ports:
       - "3000:3000"
     volumes:
-      - herald-data:/data
+      - airterm-data:/data
     environment:
       - JWT_SECRET=${JWT_SECRET}
-      - DB_PATH=/data/herald.db
+      - DB_PATH=/data/airterm.db
       - PAIR_CODE_TTL=300
     restart: unless-stopped
     healthcheck:
@@ -128,7 +138,7 @@ services:
       retries: 3
 
 volumes:
-  herald-data:
+  airterm-data:
 ```
 
 ```dockerfile
@@ -150,27 +160,26 @@ EXPOSE 3000
 CMD ["node", "dist/index.js"]
 ```
 
-## Mac 应用分发
+## Mac 应用安装
+
+### Homebrew（推荐）
+
+```bash
+brew install --cask airterm
+```
+
+安装后在菜单栏点击 AirTerm 图标 → "配对新设备" → 手机扫码即可使用。无需配置服务器地址（默认使用公共实例）。
+
+### 直接下载
+
+从 GitHub Releases 下载 `AirTerm.dmg`，拖到 /Applications。
 
 ### 开发阶段
 
-Xcode 直接 Build & Run 即可。
-
-### 正式分发
-
-两种方式：
-
-#### 1. 直接分发 `.app`
-
 ```bash
-# Xcode 中: Product → Archive → Distribute App → Copy App
-# 生成 Herald.app，拷贝到 /Applications
-```
-
-#### 2. Homebrew Cask（未来）
-
-```bash
-brew install --cask herald
+cd apps/mac
+open AirTerm.xcodeproj
+# Xcode 中 Build & Run
 ```
 
 ## 验证部署
@@ -179,18 +188,20 @@ brew install --cask herald
 
 ```bash
 # 健康检查
-curl https://herald.your-domain.com/health
+curl https://airterm.your-domain.com/health
 # 应返回: {"status":"ok"}
 
 # WebSocket 连接测试
-wscat -c wss://herald.your-domain.com/ws/mac
+wscat -c wss://airterm.your-domain.com/ws/mac
 ```
 
 ### 2. 检查 Mac 应用
 
-- 菜单栏出现 Herald 图标
-- 点击图标能看到已发现的 claude 进程
-- 状态显示「已连接服务器」
+- 菜单栏出现 AirTerm 图标
+- 点击图标打开面板，可新建终端会话
+- 在内置终端中输入 `claude`，正常启动
+- 状态显示「已连接服务器」（默认 `relay.airterm.dev`）
+- 可选: 设置中授予辅助功能权限后，可看到外部终端中的 claude 会话
 
 ### 3. 检查手机访问
 
@@ -204,10 +215,10 @@ wscat -c wss://herald.your-domain.com/ws/mac
 
 ```bash
 # Docker
-docker compose logs -f herald
+docker compose logs -f airterm
 
 # PM2
-pm2 logs herald
+pm2 logs airterm
 ```
 
 ### 关键指标
@@ -225,7 +236,7 @@ pm2 logs herald
 
 ```bash
 # 定时备份
-0 3 * * * cp /data/herald.db /backup/herald-$(date +%Y%m%d).db
+0 3 * * * cp /data/airterm.db /backup/airterm-$(date +%Y%m%d).db
 ```
 
 消息不存储，无需备份。

@@ -1,5 +1,5 @@
 {
-  "name": "@herald/web",
+  "name": "@airterm/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@herald/crypto": "workspace:*"
+    "@airterm/crypto": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

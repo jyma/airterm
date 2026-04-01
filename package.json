@@ -1,13 +1,13 @@
 {
-  "name": "herald",
+  "name": "airterm",
   "private": true,
   "description": "Remote control for Claude Code CLI sessions",
   "scripts": {
-    "dev:server": "pnpm --filter @herald/server dev",
-    "dev:web": "pnpm --filter @herald/web dev",
-    "build:server": "pnpm --filter @herald/server build",
-    "build:web": "pnpm --filter @herald/web build",
+    "dev:server": "pnpm --filter @airterm/server dev",
+    "dev:web": "pnpm --filter @airterm/web dev",
+    "build:server": "pnpm --filter @airterm/server build",
+    "build:web": "pnpm --filter @airterm/web build",
     "test": "pnpm -r test",
-    "test:integration": "pnpm --filter @herald/server test:integration"
+    "test:integration": "pnpm --filter @airterm/server test:integration"
   }
 }

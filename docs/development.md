@@ -21,19 +21,19 @@ brew install cloudflared
 ### 克隆与安装
 
 ```bash
-git clone https://github.com/your-org/herald.git
-cd herald
+git clone https://github.com/your-org/airterm.git
+cd airterm
 pnpm install
 ```
 
 ## 项目结构详解
 
 ```
-herald/
+airterm/
 ├── apps/
 │   ├── mac/                    # macOS 菜单栏应用
-│   │   └── Herald/
-│   │       ├── HeraldApp.swift           # 应用入口
+│   │   └── AirTerm/
+│   │       ├── AirTermApp.swift           # 应用入口
 │   │       ├── MenuBar/
 │   │       │   ├── MenuBarView.swift     # 菜单栏 UI
 │   │       │   └── PanelView.swift       # 展开面板 UI
@@ -112,10 +112,10 @@ herald/
 
 ```bash
 cd apps/mac
-open Herald.xcodeproj
+open AirTerm.xcodeproj
 
 # Xcode 中:
-# - 选择 Herald scheme
+# - 选择 AirTerm scheme
 # - 选择 My Mac 作为目标
 # - Cmd+R 运行
 ```
@@ -217,7 +217,7 @@ pnpm test:integration
 Mac App 需要辅助功能权限才能读写终端窗口。如果权限被拒绝：
 
 ```
-系统设置 → 隐私与安全性 → 辅助功能 → 添加 Herald
+系统设置 → 隐私与安全性 → 辅助功能 → 添加 AirTerm
 ```
 
 开发时每次重新编译可能需要重新授权。
