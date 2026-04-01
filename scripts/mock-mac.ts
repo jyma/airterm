@@ -2,16 +2,9 @@
  * Mock Mac Client — simulates a Mac pushing session data to the relay server.
  *
  * Usage: npx tsx scripts/mock-mac.ts
- *
- * Flow:
- *  1. Init pairing → get pairCode + macToken
- *  2. Display pairCode for user to enter on Web UI
- *  3. Connect WebSocket as "mac"
- *  4. Wait for pair_completed notification
- *  5. Push mock session + terminal events to the paired phone
  */
 
-const SERVER = process.env.SERVER_URL ?? 'http://8.218.78.18'
+const SERVER = process.env.SERVER_URL ?? 'http://localhost:3000'
 const WS_SERVER = SERVER.replace(/^http/, 'ws')
 const MAC_ID = `mock-mac-${Date.now()}`
 const MAC_NAME = 'My MacBook Pro'
@@ -23,12 +16,26 @@ interface PairInitResponse {
   token: string
 }
 
+// Current session state
+let currentSession = {
+  id: 'sess_mock_001',
+  name: 'auth 重构',
+  cwd: '~/projects/myapp',
+  terminal: 'AirTerm',
+  status: 'active',
+  lastOutput: '正在分析...',
+  needsApproval: false,
+}
+
+let allEvents: Record<string, unknown>[] = []
+let phoneDeviceId: string | null = null
+let ws: WebSocket
+
 async function main() {
   console.log('╔══════════════════════════════════╗')
   console.log('║     AirTerm Mock Mac Client      ║')
   console.log('╚══════════════════════════════════╝\n')
 
-  // 1. Init pairing
   const initRes = await fetch(`${SERVER}/api/pair/init`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -37,25 +44,18 @@ async function main() {
   const { pairCode, token: macToken } = (await initRes.json()) as PairInitResponse
 
   console.log(`  Pair Code:  \x1b[1;36m${pairCode}\x1b[0m`)
-  console.log(`  Web UI:     http://localhost:5173/pair`)
+  console.log(`  Web UI:     http://localhost:5173/pair?code=${pairCode}`)
   console.log(`  Enter the pair code on the Web UI.\n`)
 
-  // 2. Connect WebSocket
-  const ws = new WebSocket(`${WS_SERVER}/ws/mac?token=${macToken}`)
-  let phoneDeviceId: string | null = null
+  ws = new WebSocket(`${WS_SERVER}/ws/mac?token=${macToken}`)
 
   ws.onopen = () => {
     console.log('  ✓ WebSocket connected to relay server')
     console.log('  Waiting for phone to pair...\n')
   }
 
-  ws.onerror = (e) => {
-    console.error('  ✗ WebSocket error:', e)
-  }
-
-  ws.onclose = (e) => {
-    console.log(`  WebSocket closed (code: ${e.code})`)
-  }
+  ws.onerror = (e) => console.error('  ✗ WebSocket error:', e)
+  ws.onclose = (e) => console.log(`  WebSocket closed (code: ${e.code})`)
 
   ws.onmessage = (event) => {
     try {
@@ -64,39 +64,16 @@ async function main() {
       if (data.type === 'pair_completed') {
         phoneDeviceId = data.phoneDeviceId
         console.log(`  ✓ Phone paired: ${data.phoneName} (${data.phoneDeviceId.slice(0, 8)}...)`)
-        console.log('  Starting mock session data push...\n')
-        startMockSession(ws, phoneDeviceId!)
+        console.log('  Starting mock session...\n')
+        pushFullState()
+        startMockSession()
         return
       }
 
       if (data.type === 'relay' && data.payload) {
         const decoded = JSON.parse(atob(data.payload))
-        console.log(`  ← Phone:`, JSON.stringify(decoded.message))
-
-        // Handle phone input
-        if (decoded.message?.kind === 'input') {
-          console.log(`  ← Input: "${decoded.message.text}"`)
-          sendSessionOutput(
-            ws,
-            phoneDeviceId!,
-            `Received: ${decoded.message.text}`,
-          )
-        } else if (decoded.message?.kind === 'approval') {
-          const action = decoded.message.action
-          console.log(`  ← Approval: ${action}`)
-          sendSessionOutput(
-            ws,
-            phoneDeviceId!,
-            action === 'allow' ? '✓ Command approved, executing...' : '✗ Command denied',
-          )
-        } else if (decoded.message?.kind === 'shortcut') {
-          console.log(`  ← Shortcut: ${decoded.message.command}`)
-          sendSessionOutput(
-            ws,
-            phoneDeviceId!,
-            `Running shortcut: ${decoded.message.command}`,
-          )
-        }
+        const msg = decoded.message ?? decoded
+        handlePhoneMessage(msg)
       }
     } catch {
       // ignore
@@ -106,145 +83,145 @@ async function main() {
 
 let seq = 0
 
-function sendRelay(ws: WebSocket, targetId: string, message: Record<string, unknown>) {
+function sendRelay(targetId: string, message: Record<string, unknown>) {
   seq++
   const payload = Buffer.from(JSON.stringify({ seq, ack: 0, message })).toString('base64')
-  ws.send(
-    JSON.stringify({
-      type: 'relay',
-      from: MAC_ID,
-      to: targetId,
-      ts: Date.now(),
-      payload,
-    }),
-  )
+  ws.send(JSON.stringify({ type: 'relay', from: MAC_ID, to: targetId, ts: Date.now(), payload }))
 }
 
-function sendSessionOutput(ws: WebSocket, targetId: string, text: string) {
-  sendRelay(ws, targetId, {
-    kind: 'output',
-    sessionId: 'sess_mock_001',
-    events: [{ type: 'message', text }],
-  })
+function pushFullState() {
+  if (!phoneDeviceId) return
+  // Push session list
+  sendRelay(phoneDeviceId, { kind: 'sessions', sessions: [currentSession] })
+  console.log('  → Pushed session list')
+
+  // Push accumulated events
+  if (allEvents.length > 0) {
+    sendRelay(phoneDeviceId, { kind: 'output', sessionId: currentSession.id, events: allEvents })
+    console.log(`  → Pushed ${allEvents.length} cached events`)
+  }
 }
 
-function startMockSession(ws: WebSocket, targetId: string) {
-  // Send session list
-  sendRelay(ws, targetId, {
-    kind: 'sessions',
-    sessions: [
-      {
-        id: 'sess_mock_001',
-        name: 'auth refactor',
-        cwd: '~/projects/myapp',
-        terminal: 'AirTerm',
-        status: 'active',
-        lastOutput: 'Analyzing auth.ts...',
-        needsApproval: false,
+function pushEvent(event: Record<string, unknown>) {
+  allEvents.push(event)
+  if (!phoneDeviceId) return
+  sendRelay(phoneDeviceId, { kind: 'output', sessionId: currentSession.id, events: [event] })
+}
+
+function pushSessionUpdate(updates: Partial<typeof currentSession>) {
+  currentSession = { ...currentSession, ...updates }
+  if (!phoneDeviceId) return
+  sendRelay(phoneDeviceId, { kind: 'sessions', sessions: [currentSession] })
+}
+
+function handlePhoneMessage(msg: Record<string, unknown>) {
+  if (!phoneDeviceId) return
+
+  switch (msg.kind) {
+    case 'input': {
+      const text = msg.text as string
+      console.log(`  ← Input: "${text}"`)
+      pushEvent({ type: 'message', text: `收到指令: ${text}` })
+      break
+    }
+    case 'approval': {
+      const action = msg.action as string
+      console.log(`  ← Approval: ${action}`)
+      if (action === 'allow') {
+        pushSessionUpdate({ needsApproval: false, lastOutput: '正在执行...' })
+        pushEvent({ type: 'message', text: '✓ 命令已批准，正在执行...' })
+        // Simulate command execution
+        setTimeout(() => {
+          pushEvent({
+            type: 'tool_call',
+            tool: 'Bash',
+            args: { command: 'npm test' },
+            output: 'PASS src/auth.test.ts\nTests: 3 passed, 3 total',
+          })
+          pushEvent({ type: 'completion', summary: '所有测试通过，auth 重构完成' })
+          pushSessionUpdate({ status: 'ended', lastOutput: 'auth 重构完成' })
+        }, 2000)
+      } else {
+        pushSessionUpdate({ needsApproval: false, lastOutput: '命令已拒绝' })
+        pushEvent({ type: 'message', text: '✗ 命令已被拒绝' })
+      }
+      break
+    }
+    case 'shortcut': {
+      const command = msg.command as string
+      console.log(`  ← Shortcut: ${command}`)
+      pushEvent({ type: 'message', text: `执行快捷指令: ${command}` })
+      break
+    }
+  }
+}
+
+function startMockSession() {
+  const events: { delay: number; action: () => void }[] = [
+    {
+      delay: 1000,
+      action: () => {
+        pushEvent({ type: 'message', text: '我来分析 auth.ts 中的安全问题。\n让我先读取当前实现。' })
       },
-    ],
-  })
-  console.log('  → Sent session list')
-
-  // Simulate terminal output sequence
-  const events = [
-    { delay: 2000, text: '╭─ Claude\n│ I\'ll analyze the auth module and fix the security issues.\n│ Let me start by reading the current implementation.' },
-    { delay: 4000, text: '► Read src/auth.ts (245 lines)' },
-    { delay: 6000, text: '╭─ Claude\n│ Found 3 security issues:\n│ 1. Hardcoded JWT secret\n│ 2. No token expiration\n│ 3. Missing input validation' },
-    { delay: 8000, diff: true },
-    { delay: 10000, approval: true },
-    { delay: 15000, text: '╭─ Claude\n│ All 3 issues have been fixed. Running tests...' },
-    { delay: 17000, text: '► Bash: npm test\n\n  PASS  src/auth.test.ts\n  ✓ validates JWT secret from env (3ms)\n  ✓ rejects expired tokens (2ms)\n  ✓ validates input schema (1ms)\n\n  Tests: 3 passed' },
-    { delay: 19000, completion: true },
-  ]
-
-  for (const event of events) {
-    setTimeout(() => {
-      if (event.diff) {
-        sendRelay(ws, targetId, {
-          kind: 'output',
-          sessionId: 'sess_mock_001',
-          events: [
+    },
+    {
+      delay: 3000,
+      action: () => {
+        pushEvent({ type: 'tool_call', tool: 'Read', args: { file: 'src/auth.ts' }, output: '245 lines' })
+      },
+    },
+    {
+      delay: 5000,
+      action: () => {
+        pushEvent({
+          type: 'message',
+          text: '发现 3 个安全问题：\n1. 硬编码 JWT secret\n2. Token 无过期时间\n3. 缺少输入校验',
+        })
+      },
+    },
+    {
+      delay: 7000,
+      action: () => {
+        pushEvent({
+          type: 'diff',
+          file: 'src/auth.ts',
+          hunks: [
             {
-              type: 'diff',
-              file: 'src/auth.ts',
-              hunks: [
-                {
-                  oldStart: 5,
-                  lines: [
-                    { op: 'remove', text: 'const JWT_SECRET = "hardcoded-secret"' },
-                    { op: 'add', text: 'const JWT_SECRET = process.env.JWT_SECRET' },
-                    { op: 'add', text: 'if (!JWT_SECRET) throw new Error("JWT_SECRET required")' },
-                  ],
-                },
-                {
-                  oldStart: 23,
-                  lines: [
-                    { op: 'remove', text: 'const token = jwt.sign(payload, JWT_SECRET)' },
-                    { op: 'add', text: 'const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" })' },
-                  ],
-                },
+              oldStart: 5,
+              lines: [
+                { op: 'remove', text: 'const JWT_SECRET = "hardcoded-secret"' },
+                { op: 'add', text: 'const JWT_SECRET = process.env.JWT_SECRET' },
+                { op: 'add', text: 'if (!JWT_SECRET) throw new Error("JWT_SECRET required")' },
+              ],
+            },
+            {
+              oldStart: 23,
+              lines: [
+                { op: 'remove', text: 'const token = jwt.sign(payload, JWT_SECRET)' },
+                { op: 'add', text: 'const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" })' },
               ],
             },
           ],
         })
-        console.log('  → Sent diff event')
-      } else if (event.approval) {
-        // Update session to needsApproval
-        sendRelay(ws, targetId, {
-          kind: 'sessions',
-          sessions: [
-            {
-              id: 'sess_mock_001',
-              name: 'auth refactor',
-              cwd: '~/projects/myapp',
-              terminal: 'AirTerm',
-              status: 'active',
-              lastOutput: 'Waiting for approval...',
-              needsApproval: true,
-            },
-          ],
-        })
-        sendRelay(ws, targetId, {
-          kind: 'output',
-          sessionId: 'sess_mock_001',
-          events: [
-            {
-              type: 'approval',
-              tool: 'Bash',
-              command: 'npm test',
-              prompt: 'Allow Bash: npm test?',
-            },
-          ],
-        })
-        console.log('  → Sent approval request (waiting for phone response)')
-      } else if (event.completion) {
-        sendRelay(ws, targetId, {
-          kind: 'output',
-          sessionId: 'sess_mock_001',
-          events: [{ type: 'completion', summary: 'Auth module security fixes complete — 3 issues resolved' }],
-        })
-        sendRelay(ws, targetId, {
-          kind: 'sessions',
-          sessions: [
-            {
-              id: 'sess_mock_001',
-              name: 'auth refactor',
-              cwd: '~/projects/myapp',
-              terminal: 'AirTerm',
-              status: 'ended',
-              lastOutput: 'Auth fixes complete',
-              needsApproval: false,
-            },
-          ],
-        })
-        console.log('  → Session completed ✓')
-      } else {
-        sendSessionOutput(ws, targetId, event.text!)
-        console.log(`  → Sent output event`)
-      }
-    }, event.delay)
+        pushEvent({ type: 'message', text: '已修复硬编码 token。现在运行测试确认。' })
+      },
+    },
+    {
+      delay: 10000,
+      action: () => {
+        pushSessionUpdate({ needsApproval: true, lastOutput: '等待确认: npm test' })
+        pushEvent({ type: 'approval', tool: 'Bash', command: 'npm test', prompt: 'Allow Bash: npm test?' })
+        console.log('  → Sent approval request (waiting for phone response...)')
+      },
+    },
+  ]
+
+  for (const { delay, action } of events) {
+    setTimeout(action, delay)
   }
 }
 
 main().catch(console.error)
+
+// Keep process alive
+setInterval(() => {}, 60_000)

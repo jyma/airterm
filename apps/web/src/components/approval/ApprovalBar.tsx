@@ -1,26 +1,38 @@
 interface ApprovalBarProps {
   readonly sessionId: string
   readonly prompt: string
+  readonly command?: string
   readonly onApprove: (sessionId: string) => void
   readonly onDeny: (sessionId: string) => void
 }
 
-export function ApprovalBar({ sessionId, prompt, onApprove, onDeny }: ApprovalBarProps) {
+export function ApprovalBar({ sessionId, prompt, command, onApprove, onDeny }: ApprovalBarProps) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-bg-secondary border-t border-accent-yellow">
-      <div className="flex-1 text-xs text-accent-yellow truncate">{prompt}</div>
-      <button
-        onClick={() => onDeny(sessionId)}
-        className="px-4 h-10 rounded-lg bg-accent-red/20 text-accent-red text-sm font-medium hover:bg-accent-red/30 active:scale-95 transition-all"
-      >
-        Deny
-      </button>
-      <button
-        onClick={() => onApprove(sessionId)}
-        className="px-4 h-10 rounded-lg bg-accent-green/20 text-accent-green text-sm font-medium hover:bg-accent-green/30 active:scale-95 transition-all"
-      >
-        Allow
-      </button>
+    <div className="mx-3.5 mb-2 bg-bg-secondary rounded-lg p-3 space-y-2.5">
+      <div className="font-mono text-xs text-accent-yellow">⚠ {prompt}</div>
+
+      {command && (
+        <div className="bg-bg-tertiary rounded-md px-2.5 py-1.5">
+          <span className="font-mono text-xs text-text-primary">{command}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2.5">
+        <button
+          onClick={() => onDeny(sessionId)}
+          className="flex-1 h-10 rounded-lg bg-bg-tertiary font-[family-name:var(--font-ui)] text-sm font-semibold text-accent-red active:opacity-70 transition-opacity"
+          aria-label="Deny"
+        >
+          Deny
+        </button>
+        <button
+          onClick={() => onApprove(sessionId)}
+          className="flex-1 h-10 rounded-lg bg-accent-blue font-[family-name:var(--font-ui)] text-sm font-semibold text-white active:opacity-70 transition-opacity"
+          aria-label="Allow"
+        >
+          Allow
+        </button>
+      </div>
     </div>
   )
 }

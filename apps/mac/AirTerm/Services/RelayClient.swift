@@ -11,7 +11,7 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
 
     private let serverURL: String
     private let token: String
-    private let deviceId: String
+    let deviceId: String
     private let role: String
 
     private var webSocketTask: URLSessionWebSocketTask?
@@ -20,6 +20,10 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
     private var reconnectAttempt = 0
     private let maxReconnectAttempts = 100
     private let reconnectDelays = [0.0, 1.0, 3.0, 10.0, 30.0]
+
+    // Sequence tracking for SequencedMessage protocol
+    private var seq = 0
+    private var lastAck = 0
 
     private(set) var state: State = .disconnected {
         didSet {
@@ -81,14 +85,20 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
         webSocketTask?.send(.string(text)) { _ in }
     }
 
-    /// Send a relay envelope to a target device
+    /// Send a relay envelope to a target device, wrapped in SequencedMessage format.
     func sendRelay(to targetId: String, payload: [String: Any]) {
+        seq += 1
+        let sequenced: [String: Any] = [
+            "seq": seq,
+            "ack": lastAck,
+            "message": payload,
+        ]
         let envelope: [String: Any] = [
             "type": "relay",
             "from": deviceId,
             "to": targetId,
             "ts": Int(Date().timeIntervalSince1970 * 1000),
-            "payload": encodePayload(payload),
+            "payload": encodePayload(sequenced),
         ]
         send(envelope)
     }
@@ -148,8 +158,18 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
         if json["type"] as? String == "relay",
            let payload = json["payload"] as? String,
            let decoded = decodePayload(payload) {
-            onMessage?(decoded)
+            // Unwrap SequencedMessage: extract .message if present
+            if let message = decoded["message"] as? [String: Any] {
+                if let peerSeq = decoded["seq"] as? Int {
+                    lastAck = max(lastAck, peerSeq)
+                }
+                onMessage?(message)
+            } else {
+                // Fallback: treat entire decoded payload as business message
+                onMessage?(decoded)
+            }
         } else {
+            // Non-relay messages (e.g., pair_completed from server)
             onMessage?(json)
         }
     }

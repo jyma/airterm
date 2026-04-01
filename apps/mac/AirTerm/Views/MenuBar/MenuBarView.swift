@@ -2,89 +2,82 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
+                Image(systemName: "terminal.fill")
+                    .foregroundStyle(.blue)
                 Text("AirTerm")
                     .font(.headline)
                 Spacer()
                 connectionBadge
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
 
             Divider()
 
             // Session list
             if appState.sessions.isEmpty {
                 VStack(spacing: 8) {
-                    Text("No active sessions")
+                    Text("暂无活跃会话")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("New Claude Session") {
+                    Button("启动 Claude 会话") {
                         appState.createSession()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                .padding(.vertical, 20)
             } else {
                 ForEach(appState.sessions) { session in
                     SessionRowView(session: session)
+                        .onTapGesture {
+                            appState.selectedSessionId = session.id
+                            openWindow(id: "main")
+                        }
                 }
             }
 
             Divider()
+                .padding(.vertical, 4)
 
             // Actions
-            Button(action: { appState.createSession() }) {
-                Label("New Session", systemImage: "plus.rectangle")
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            Button(action: {
+            MenuButton(icon: "qrcode", label: "配对新设备") {
                 Task { try? await appState.startPairing() }
-            }) {
-                Label("Pair New Device", systemImage: "qrcode")
+                openWindow(id: "pairing")
+            }
+
+            MenuButton(icon: "iphone", label: "已配对设备 (\(appState.pairedDevices.count))") {
+                openWindow(id: "main")
+            }
+
+            SettingsLink {
+                Label("设置", systemImage: "gearshape")
+                    .font(.callout)
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
 
-            // AX monitoring toggle
-            if appState.accessibilityEnabled {
-                HStack(spacing: 4) {
-                    Image(systemName: "eye.fill")
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                    Text("External terminal monitoring active")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+            // AX monitoring
+            if !appState.accessibilityEnabled {
+                MenuButton(icon: "eye", label: "启用终端监控") {
+                    appState.requestAccessibility()
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-            } else {
-                Button(action: { appState.requestAccessibility() }) {
-                    Label("Enable Terminal Monitoring", systemImage: "eye")
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
             }
 
             Divider()
+                .padding(.vertical, 4)
 
-            Button("Quit AirTerm") {
+            MenuButton(icon: "", label: "退出 AirTerm") {
                 NSApplication.shared.terminate(nil)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
         }
         .frame(width: 280)
     }
@@ -93,10 +86,10 @@ struct MenuBarView: View {
         HStack(spacing: 4) {
             Circle()
                 .fill(connectionColor)
-                .frame(width: 6, height: 6)
+                .frame(width: 7, height: 7)
             Text(connectionLabel)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(connectionColor)
         }
     }
 
@@ -110,10 +103,34 @@ struct MenuBarView: View {
 
     private var connectionLabel: String {
         switch appState.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting"
-        case .disconnected: "Offline"
+        case .connected: "在线"
+        case .connecting: "连接中"
+        case .disconnected: "离线"
         }
+    }
+}
+
+struct MenuButton: View {
+    let icon: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if !icon.isEmpty {
+                    Image(systemName: icon)
+                        .frame(width: 16)
+                        .foregroundStyle(.secondary)
+                }
+                Text(label)
+                    .font(.callout)
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 }
 
@@ -124,25 +141,33 @@ struct SessionRowView: View {
         HStack(spacing: 8) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 6, height: 6)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(session.name)
-                    .font(.caption)
+                    .font(.callout)
+                    .fontWeight(.medium)
                     .lineLimit(1)
-                Text(session.lastOutput.isEmpty ? session.cwd : session.lastOutput)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if session.needsApproval {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                            .font(.caption2)
+                        Text("等待确认: \(session.lastOutput)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                } else {
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
-            if session.needsApproval {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.yellow)
-                    .font(.caption)
-            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 
@@ -152,6 +177,18 @@ struct SessionRowView: View {
         case .connected: .blue
         case .discovered: .yellow
         case .ended: .gray
+        }
+    }
+
+    private var statusText: String {
+        if !session.lastOutput.isEmpty {
+            return session.lastOutput
+        }
+        switch session.status {
+        case .active: return "运行中"
+        case .connected: return "已连接"
+        case .discovered: return "已发现"
+        case .ended: return "已结束"
         }
     }
 }

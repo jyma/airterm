@@ -4,6 +4,7 @@ struct PairInfo: Codable, Sendable {
     let pairId: String
     let pairCode: String
     let expiresAt: Int
+    let token: String
 }
 
 struct PairedDevice: Codable, Identifiable, Sendable {

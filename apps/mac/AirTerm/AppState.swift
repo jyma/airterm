@@ -16,7 +16,7 @@ final class AppState {
 
     // Configuration
     var serverURL: String {
-        get { UserDefaults.standard.string(forKey: "serverURL") ?? "https://relay.airterm.dev" }
+        get { UserDefaults.standard.string(forKey: "serverURL") ?? "http://localhost:3000" }
         set { UserDefaults.standard.set(newValue, forKey: "serverURL") }
     }
 
@@ -47,6 +47,7 @@ final class AppState {
         subprocess.onEvent { [weak self] sessionId, event in
             Task { @MainActor in
                 self?.events[sessionId, default: []].append(event)
+                self?.sendEventToAllPhones(sessionId: sessionId, event: event)
                 self?.refreshSessions()
             }
         }
@@ -70,6 +71,7 @@ final class AppState {
         axAdapter.onEvent { [weak self] sessionId, event in
             Task { @MainActor in
                 self?.events[sessionId, default: []].append(event)
+                self?.sendEventToAllPhones(sessionId: sessionId, event: event)
                 self?.refreshSessions()
             }
         }
@@ -89,6 +91,9 @@ final class AppState {
     }
 
     func connectRelay(token: String) {
+        // Disconnect existing client before creating new one
+        relayClient?.disconnect()
+
         let client = RelayClient(
             serverURL: serverURL,
             token: token,
@@ -126,23 +131,28 @@ final class AppState {
         )
         isPairing = true
         pairInfo = try await service.initiatePairing()
+
+        // Connect relay immediately so we can receive pair_completed notification
+        if let token = pairInfo?.token {
+            connectRelay(token: token)
+        }
     }
 
-    // MARK: - Private
-
-    /// Merge sessions from both adapters
-    private func refreshSessions() {
-        var merged: [Session] = []
-        if let sub = subprocessAdapter {
-            merged.append(contentsOf: sub.sessions)
-        }
-        if let ax = accessibilityAdapter {
-            merged.append(contentsOf: ax.sessions)
-        }
-        sessions = merged
-    }
+    // MARK: - Relay Message Handling
 
     private func handleRelayMessage(_ msg: [String: Any]) {
+        // Handle server notifications (type-based, e.g., pair_completed)
+        if let type = msg["type"] as? String {
+            switch type {
+            case "pair_completed":
+                handlePairCompleted(msg)
+                return
+            default:
+                break
+            }
+        }
+
+        // Handle business messages from phone (kind-based)
         guard let kind = msg["kind"] as? String else { return }
 
         switch kind {
@@ -165,6 +175,127 @@ final class AppState {
             break
         }
     }
+
+    private func handlePairCompleted(_ msg: [String: Any]) {
+        guard let phoneDeviceId = msg["phoneDeviceId"] as? String,
+              let phoneName = msg["phoneName"] as? String else { return }
+
+        let device = PairedDevice(
+            id: phoneDeviceId,
+            name: phoneName,
+            role: "phone",
+            token: "",
+            pairedAt: Date()
+        )
+        pairedDevices.append(device)
+        isPairing = false
+        pairInfo = nil
+
+        // Push current session list to the newly paired phone
+        sendSessionsToPhone(phoneDeviceId)
+    }
+
+    // MARK: - Session Management
+
+    /// Merge sessions from both adapters and push to paired phones
+    private func refreshSessions() {
+        var merged: [Session] = []
+        if let sub = subprocessAdapter {
+            merged.append(contentsOf: sub.sessions)
+        }
+        if let ax = accessibilityAdapter {
+            merged.append(contentsOf: ax.sessions)
+        }
+        sessions = merged
+        sendSessionsToAllPhones()
+    }
+
+    // MARK: - Push to Phone
+
+    private func sendSessionsToPhone(_ phoneId: String) {
+        let sessionList: [[String: Any]] = sessions.map { session in
+            [
+                "id": session.id,
+                "name": session.name,
+                "cwd": session.cwd,
+                "terminal": session.terminal,
+                "status": session.status.rawValue,
+                "lastOutput": session.lastOutput,
+                "needsApproval": session.needsApproval,
+            ]
+        }
+        let msg: [String: Any] = [
+            "kind": "sessions",
+            "sessions": sessionList,
+        ]
+        relayClient?.sendRelay(to: phoneId, payload: msg)
+    }
+
+    private func sendSessionsToAllPhones() {
+        for device in pairedDevices where device.role == "phone" {
+            sendSessionsToPhone(device.id)
+        }
+    }
+
+    private func sendEventToAllPhones(sessionId: String, event: TerminalEvent) {
+        guard !pairedDevices.isEmpty else { return }
+
+        let eventDict = serializeEvent(event)
+        let msg: [String: Any] = [
+            "kind": "output",
+            "sessionId": sessionId,
+            "events": [eventDict],
+        ]
+
+        for device in pairedDevices where device.role == "phone" {
+            relayClient?.sendRelay(to: device.id, payload: msg)
+        }
+    }
+
+    private func serializeEvent(_ event: TerminalEvent) -> [String: Any] {
+        switch event {
+        case .message(let text):
+            return ["type": "message", "text": text]
+
+        case .diff(let file, let hunks):
+            return [
+                "type": "diff",
+                "file": file,
+                "hunks": hunks.map { hunk in
+                    [
+                        "oldStart": hunk.oldStart,
+                        "lines": hunk.lines.map { line in
+                            ["op": line.op.rawValue, "text": line.text] as [String: Any]
+                        },
+                    ] as [String: Any]
+                },
+            ]
+
+        case .approval(let tool, let command, let prompt):
+            return [
+                "type": "approval",
+                "tool": tool,
+                "command": command,
+                "prompt": prompt,
+            ]
+
+        case .toolCall(let tool, let args, let output):
+            var dict: [String: Any] = [
+                "type": "tool_call",
+                "tool": tool,
+                "args": args,
+            ]
+            if let output {
+                dict["output"] = output
+            }
+            return dict
+
+        case .completion(let summary):
+            return ["type": "completion", "summary": summary]
+        }
+    }
+
+    // MARK: - Input Routing
 
     /// Route input to the correct adapter based on session source
     private func routeInput(_ text: String, sessionId: String) {

@@ -63,8 +63,8 @@ export function createWSClient(options: WSClientOptions): WSClient {
           lastAck = Math.max(lastAck, sequenced.seq)
           options.onMessage(sequenced)
         }
-      } catch {
-        // Ignore malformed messages
+      } catch (err) {
+        console.error('[ws] message parse error:', err, event.data)
       }
     }
 
