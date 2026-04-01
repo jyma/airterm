@@ -5,10 +5,14 @@ dist/
 *.sqlite
 
 # Mac App
+apps/mac/.build/
 apps/mac/AirTerm/build/
 apps/mac/AirTerm/*.xcuserdata
 *.xcworkspace
 DerivedData/
+
+# Build artifacts
+*.tsbuildinfo
 
 # IDE
 .vscode/
