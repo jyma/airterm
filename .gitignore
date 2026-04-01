@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+*.db
+*.sqlite
+
+# Mac App
+apps/mac/Herald/build/
+apps/mac/Herald/*.xcuserdata
+*.xcworkspace
+DerivedData/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
