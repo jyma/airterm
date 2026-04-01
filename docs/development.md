@@ -205,6 +205,7 @@ pnpm test:integration
 在 Xcode 中运行 Test Navigator (Cmd+6)。
 
 重点测试：
+
 - ProcessMonitor: 能否正确发现 claude 进程
 - OutputParser: 各种输出格式的解析
 - CommandFilter: 危险命令识别

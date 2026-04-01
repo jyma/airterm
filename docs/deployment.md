@@ -123,7 +123,7 @@ services:
   airterm:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - airterm-data:/data
     environment:
@@ -132,7 +132,7 @@ services:
       - PAIR_CODE_TTL=300
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -223,12 +223,12 @@ pm2 logs airterm
 
 ### 关键指标
 
-| 指标 | 正常范围 | 告警阈值 |
-|------|---------|---------|
-| WebSocket 连接数 | 1-10 | > 100 (可能被攻击) |
-| 内存使用 | < 50MB | > 200MB |
-| CPU 使用 | < 5% | > 50% |
-| 消息转发延迟 | < 50ms | > 500ms |
+| 指标             | 正常范围 | 告警阈值           |
+| ---------------- | -------- | ------------------ |
+| WebSocket 连接数 | 1-10     | > 100 (可能被攻击) |
+| 内存使用         | < 50MB   | > 200MB            |
+| CPU 使用         | < 5%     | > 50%              |
+| 消息转发延迟     | < 50ms   | > 500ms            |
 
 ## 备份
 

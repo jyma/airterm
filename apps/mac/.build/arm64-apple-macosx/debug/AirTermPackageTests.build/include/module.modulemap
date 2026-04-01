@@ -1,0 +1,3 @@
+module AirTermPackageTests {
+    header "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/include/AirTermPackageTests-Swift.h"
+}

@@ -1,0 +1,1197 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.xctest/Contents/MacOS/AirTermPackageTests",
+      "packagePath" : "/Users/mje/GitHub/airterm/apps/mac",
+      "productName" : "AirTermPackageTests"
+    }
+  ],
+  "copyCommands" : {
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm_AirTerm.bundle/Placeholder.swift" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Resources/Placeholder.swift"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm_AirTerm.bundle/Placeholder.swift"
+        }
+      ]
+    }
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.AirTerm-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/sources",
+      "importPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AccessibilityAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AgentAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/SubprocessAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AirTermApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AppState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/PairInfo.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/Session.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/TerminalEvent.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/InputHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/OutputParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/PairingService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/ProcessMonitor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/RelayClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/StreamParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalEmulator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalReader.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/WindowMapper.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/BundleIDValidator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/DangerousCommandFilter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Main/MainWindow.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/MenuBar/MenuBarView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Pairing/PairingView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Settings/SettingsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DerivedSources/resource_bundle_accessor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<AirTerm-arm64-apple-macosx26.0-debug.module-resources>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "AirTerm",
+      "moduleOutputPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTerm.swiftmodule",
+      "objects" : [
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AccessibilityAdapter.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AgentAdapter.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SubprocessAdapter.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AirTermApp.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AppState.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairInfo.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/Session.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEvent.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/InputHandler.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/OutputParser.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingService.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/ProcessMonitor.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/RelayClient.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/StreamParser.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEmulator.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalReader.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/WindowMapper.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/BundleIDValidator.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DangerousCommandFilter.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MainWindow.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MenuBarView.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingView.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SettingsView.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/resource_bundle_accessor.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE",
+        "-module-cache-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "AirTerm_main",
+        "-swift-version",
+        "5",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "mac"
+      ],
+      "outputFileMapPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AccessibilityAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AgentAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SubprocessAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AirTermApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AppState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairInfo.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/Session.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEvent.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/InputHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/OutputParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/ProcessMonitor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/RelayClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/StreamParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEmulator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalReader.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/WindowMapper.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/BundleIDValidator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DangerousCommandFilter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MainWindow.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MenuBarView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SettingsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTerm.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AccessibilityAdapter.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AgentAdapter.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/SubprocessAdapter.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AirTermApp.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AppState.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/PairInfo.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/Session.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/TerminalEvent.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/InputHandler.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/OutputParser.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/PairingService.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/ProcessMonitor.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/RelayClient.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/StreamParser.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalEmulator.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalReader.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/WindowMapper.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/BundleIDValidator.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/DangerousCommandFilter.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Main/MainWindow.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/MenuBar/MenuBarView.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Pairing/PairingView.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Settings/SettingsView.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DerivedSources/resource_bundle_accessor.swift"
+      ],
+      "tempsPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.AirTermPackageTests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/sources",
+      "importPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTermTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AirTermPackageTests",
+      "moduleOutputPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTermPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/include/AirTermPackageTests-Swift.h",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "mac"
+      ],
+      "outputFileMapPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTermPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.AirTermTests-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/sources",
+      "importPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/BundleIDValidatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/DangerousCommandFilterTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/OutputParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/StreamParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AirTermTests",
+      "moduleOutputPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTermTests.swiftmodule",
+      "objects" : [
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/BundleIDValidatorTests.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/DangerousCommandFilterTests.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/OutputParserTests.swift.o",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/StreamParserTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j8",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "5",
+        "-I",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-L",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-plugin-path",
+        "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "mac"
+      ],
+      "outputFileMapPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/BundleIDValidatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/DangerousCommandFilterTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/OutputParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/StreamParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules/AirTermTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/BundleIDValidatorTests.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/DangerousCommandFilterTests.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/OutputParserTests.swift",
+        "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/StreamParserTests.swift"
+      ],
+      "tempsPath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "AirTerm" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "AirTerm",
+      "-package-name",
+      "mac",
+      "-c",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AccessibilityAdapter.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AgentAdapter.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/SubprocessAdapter.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AirTermApp.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AppState.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/PairInfo.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/Session.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/TerminalEvent.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/InputHandler.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/OutputParser.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/PairingService.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/ProcessMonitor.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/RelayClient.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/StreamParser.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalEmulator.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalReader.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/WindowMapper.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/BundleIDValidator.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/DangerousCommandFilter.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Main/MainWindow.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/MenuBar/MenuBarView.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Pairing/PairingView.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Settings/SettingsView.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DerivedSources/resource_bundle_accessor.swift",
+      "-I",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE",
+      "-module-cache-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "AirTerm_main",
+      "-swift-version",
+      "5",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "mac",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ],
+    "AirTermPackageTests" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "AirTermPackageTests",
+      "-package-name",
+      "mac",
+      "-c",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/include/AirTermPackageTests-Swift.h",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "mac",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ],
+    "AirTermTests" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "AirTermTests",
+      "-package-name",
+      "mac",
+      "-c",
+      "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/BundleIDValidatorTests.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/DangerousCommandFilterTests.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/OutputParserTests.swift",
+      "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/StreamParserTests.swift",
+      "-I",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j8",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-I",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-L",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-plugin-path",
+      "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "mac",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "AirTerm" : [
+
+    ],
+    "AirTermPackageTests" : [
+      "AirTermTests",
+      "AirTerm"
+    ],
+    "AirTermTests" : [
+      "AirTerm"
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm-entitlement.plist" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<entitlement-plist>"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<com.apple.security.get-task-allow>"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm-entitlement.plist"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AccessibilityAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/AgentAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Agent/SubprocessAdapter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AirTermApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/AppState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/PairInfo.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/Session.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Models/TerminalEvent.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/InputHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/OutputParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/PairingService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/ProcessMonitor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/RelayClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/StreamParser.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalEmulator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/TerminalReader.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Services/WindowMapper.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/BundleIDValidator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Utils/DangerousCommandFilter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Main/MainWindow.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/MenuBar/MenuBarView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Pairing/PairingView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/AirTerm/Views/Settings/SettingsView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DerivedSources/resource_bundle_accessor.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/sources"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AccessibilityAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AgentAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AirTermApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AppState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/BundleIDValidator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DangerousCommandFilter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/InputHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MainWindow.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MenuBarView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/OutputParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairInfo.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/ProcessMonitor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/RelayClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/Session.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SettingsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/StreamParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SubprocessAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEmulator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEvent.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalReader.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/WindowMapper.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/resource_bundle_accessor.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.product/Objects.LinkFileList"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/sources"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AccessibilityAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AgentAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AirTermApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/AppState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/BundleIDValidator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/DangerousCommandFilter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/InputHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MainWindow.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/MenuBarView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/OutputParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairInfo.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/PairingView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/ProcessMonitor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/RelayClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/Session.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SettingsView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/StreamParser.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/SubprocessAdapter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEmulator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalEvent.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/TerminalReader.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/WindowMapper.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTerm.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/BundleIDValidatorTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/DangerousCommandFilterTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/OutputParserTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/StreamParserTests.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/BundleIDValidatorTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/DangerousCommandFilterTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/OutputParserTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/mje/GitHub/airterm/apps/mac/Tests/AirTermTests/StreamParserTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/AirTermTests.build/sources"
+    },
+    "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/mje/GitHub/airterm/apps/mac/.build/arm64-apple-macosx/debug/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}

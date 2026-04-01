@@ -97,6 +97,7 @@ TerminalEmulator 通过 pty 启动进程
 ```
 
 优势：
+
 - 无需辅助功能权限
 - CPU 近零（事件驱动，非轮询）
 - 结构化 JSON 输出，无需正则解析终端文本
@@ -122,22 +123,23 @@ OutputParser 正则解析为结构化事件
 ```
 
 优势：
+
 - 无需从 AirTerm 启动，接管已有会话
 - 对用户现有工作流零侵入
 
 **模块说明：**
 
-| 模块 | 所属模式 | 职责 | 关键 API |
-|------|---------|------|----------|
-| AgentAdapter | 协议 | 统一接口：send(input)、onEvent(callback) | Swift Protocol |
-| TerminalEmulator | 子进程 | 内置终端，pty + Process 管理 | `Process`, `posix_openpt` |
-| StreamParser | 子进程 | 解析 `--input-format stream-json` 事件流 | JSON Decoder |
-| ProcessMonitor | AX API | 定时扫描 CLI 进程 | `NSRunningApplication` |
-| WindowMapper | AX API | PID → 终端窗口映射 | `AXUIElementCreateApplication` |
-| TerminalReader | AX API | 读取终端窗口文本 | `AXUIElementCopyAttributeValue` |
-| OutputParser | AX API | 终端文本 → 结构化事件 | 正则 + 状态机 |
-| RelayClient | 通用 | 与中继服务器的 WSS 连接（MVP 仅此通道） | `URLSessionWebSocketTask` |
-| InputHandler | 通用 | 远程指令写入终端 | pty write / `CGEvent` |
+| 模块             | 所属模式 | 职责                                     | 关键 API                        |
+| ---------------- | -------- | ---------------------------------------- | ------------------------------- |
+| AgentAdapter     | 协议     | 统一接口：send(input)、onEvent(callback) | Swift Protocol                  |
+| TerminalEmulator | 子进程   | 内置终端，pty + Process 管理             | `Process`, `posix_openpt`       |
+| StreamParser     | 子进程   | 解析 `--input-format stream-json` 事件流 | JSON Decoder                    |
+| ProcessMonitor   | AX API   | 定时扫描 CLI 进程                        | `NSRunningApplication`          |
+| WindowMapper     | AX API   | PID → 终端窗口映射                       | `AXUIElementCreateApplication`  |
+| TerminalReader   | AX API   | 读取终端窗口文本                         | `AXUIElementCopyAttributeValue` |
+| OutputParser     | AX API   | 终端文本 → 结构化事件                    | 正则 + 状态机                   |
+| RelayClient      | 通用     | 与中继服务器的 WSS 连接（MVP 仅此通道）  | `URLSessionWebSocketTask`       |
+| InputHandler     | 通用     | 远程指令写入终端                         | pty write / `CGEvent`           |
 
 #### RelayClient（Mac 侧网络通信）
 
@@ -230,6 +232,7 @@ Web 端 TransportManager 对上层 CryptoLayer 提供统一的 `send()` / `onMes
 - **WANTransport**: `wss://<relay-server>/ws/phone`，通过 JWT 认证
 
 工作流程：
+
 1. 打开页面时并行尝试 LAN 和 WAN（Happy Eyeballs）
 2. LAN 先通则标记 active，WAN 保持 standby
 3. LAN 断开（心跳超时 10 秒）→ 自动切到 WAN，重传未确认消息
@@ -331,14 +334,14 @@ active 切回 LAN，WAN 降为 standby
 
 ## 性能考量
 
-| 指标 | 目标 | 实现方式 |
-|------|------|----------|
-| 终端扫描频率 | 2 秒 | ProcessMonitor 定时器 |
-| 内容变化检测 | 500ms | TerminalReader diff 比对 |
-| LAN 端到端延迟 | < 50ms | 内网直连，无中继 |
-| WAN 端到端延迟 | < 200ms | WSS 长连接，无轮询 |
-| 通道切换延迟 | < 1 秒 | 双通道热备，无需重新握手 |
-| Mac 端 CPU | < 3% | 仅在内容变化时处理 |
-| LAN 心跳开销 | 极低 | 每 5 秒 1 条加密心跳 |
-| WAN standby 开销 | 极低 | 每 60 秒 1 条保活心跳 |
-| 服务器内存 | < 50MB | 无状态转发，不缓存消息 |
+| 指标             | 目标    | 实现方式                 |
+| ---------------- | ------- | ------------------------ |
+| 终端扫描频率     | 2 秒    | ProcessMonitor 定时器    |
+| 内容变化检测     | 500ms   | TerminalReader diff 比对 |
+| LAN 端到端延迟   | < 50ms  | 内网直连，无中继         |
+| WAN 端到端延迟   | < 200ms | WSS 长连接，无轮询       |
+| 通道切换延迟     | < 1 秒  | 双通道热备，无需重新握手 |
+| Mac 端 CPU       | < 3%    | 仅在内容变化时处理       |
+| LAN 心跳开销     | 极低    | 每 5 秒 1 条加密心跳     |
+| WAN standby 开销 | 极低    | 每 60 秒 1 条保活心跳    |
+| 服务器内存       | < 50MB  | 无状态转发，不缓存消息   |

@@ -163,16 +163,16 @@ func openDatabase() throws -> OpaquePointer {
 
 ```typescript
 // 服务器数据库初始化
-import Database from "better-sqlite3"
+import Database from 'better-sqlite3'
 
 function initDatabase(dbPath: string, encryptionKey: string): Database.Database {
   const db = new Database(dbPath)
 
   // SQLCipher 加密
   db.pragma(`key = '${encryptionKey}'`)
-  db.pragma("cipher_page_size = 4096")
-  db.pragma("kdf_iter = 256000")
-  db.pragma("journal_mode = WAL")
+  db.pragma('cipher_page_size = 4096')
+  db.pragma('kdf_iter = 256000')
+  db.pragma('journal_mode = WAL')
 
   // 建表
   db.exec(`
@@ -236,23 +236,23 @@ function initDatabase(dbPath: string, encryptionKey: string): Database.Database 
 // Web Crypto API — 私钥不可导出
 async function generateKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(
-    { name: "X25519" },
-    false,  // extractable = false，私钥永远无法被 JS 读取
-    ["deriveKey", "deriveBits"]
+    { name: 'X25519' },
+    false, // extractable = false，私钥永远无法被 JS 读取
+    ['deriveKey', 'deriveBits'],
   )
 }
 
 // 存储到 IndexedDB
 async function saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
-  const db = await openDB("airterm", 1, {
+  const db = await openDB('airterm', 1, {
     upgrade(db) {
-      db.createObjectStore("keys")
-    }
+      db.createObjectStore('keys')
+    },
   })
   // 私钥以 CryptoKey 对象存储，non-extractable
   // 即使 XSS 攻击也无法导出私钥原始值
-  await db.put("keys", keyPair.privateKey, "e2e-private")
-  await db.put("keys", keyPair.publicKey, "e2e-public")
+  await db.put('keys', keyPair.privateKey, 'e2e-private')
+  await db.put('keys', keyPair.publicKey, 'e2e-public')
 }
 ```
 
@@ -317,11 +317,11 @@ const rateLimiter = {
 // 所有来自终端的内容在渲染前进行转义
 function sanitizeTerminalOutput(raw: string): string {
   return raw
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;")
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 // CSP 头部配置
@@ -335,13 +335,13 @@ function sanitizeTerminalOutput(raw: string): string {
 
 ## 合规考虑
 
-| 要求 | AirTerm 的做法 |
-|------|-----------------|
+| 要求       | AirTerm 的做法                   |
+| ---------- | -------------------------------- |
 | 数据最小化 | 服务器仅存储路由所需的最少元数据 |
-| 数据本地化 | 所有敏感数据仅存在于用户设备上 |
-| 用户控制权 | 用户可随时撤销设备、删除数据 |
-| 透明性 | 开源，可自部署，可审计 |
-| 知情同意 | 首次使用说明数据处理方式 |
+| 数据本地化 | 所有敏感数据仅存在于用户设备上   |
+| 用户控制权 | 用户可随时撤销设备、删除数据     |
+| 透明性     | 开源，可自部署，可审计           |
+| 知情同意   | 首次使用说明数据处理方式         |
 
 ## 安全审计清单
 

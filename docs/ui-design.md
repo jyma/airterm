@@ -106,7 +106,7 @@ Diff 色
 }
 
 /* 亮色模式 */
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   --bg-primary: #ffffff;
   --bg-secondary: #f6f8fa;
   --bg-tertiary: #d0d7de;
@@ -120,9 +120,9 @@ Diff 色
   --accent-blue: #0969da;
   --accent-purple: #8250df;
   --accent-cyan: #1b7c83;
-  --diff-add-bg: rgba(26, 127, 55, 0.10);
+  --diff-add-bg: rgba(26, 127, 55, 0.1);
   --diff-add-text: #1a7f37;
-  --diff-del-bg: rgba(209, 36, 47, 0.10);
+  --diff-del-bg: rgba(209, 36, 47, 0.1);
   --diff-del-text: #d1242f;
   --border: #d0d7de;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -130,7 +130,7 @@ Diff 色
 
 /* 跟随系统 */
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
+  :root:not([data-theme='dark']) {
     /* 同上亮色变量 */
   }
 }
@@ -139,20 +139,20 @@ Diff 色
 ### 主题切换逻辑
 
 ```typescript
-type Theme = "system" | "dark" | "light"
+type Theme = 'system' | 'dark' | 'light'
 
 function setTheme(theme: Theme) {
-  if (theme === "system") {
-    document.documentElement.removeAttribute("data-theme")
+  if (theme === 'system') {
+    document.documentElement.removeAttribute('data-theme')
   } else {
-    document.documentElement.setAttribute("data-theme", theme)
+    document.documentElement.setAttribute('data-theme', theme)
   }
-  localStorage.setItem("airterm-theme", theme)
+  localStorage.setItem('airterm-theme', theme)
 }
 
 // 初始化
-const saved = localStorage.getItem("airterm-theme") as Theme | null
-setTheme(saved ?? "system")
+const saved = localStorage.getItem('airterm-theme') as Theme | null
+setTheme(saved ?? 'system')
 ```
 
 ---
@@ -162,12 +162,11 @@ setTheme(saved ?? "system")
 ```css
 :root {
   /* 代码/终端内容 */
-  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono",
-    "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --font-mono:
+    'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace;
 
   /* UI 元素 */
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Segoe UI", system-ui, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
 
   /* 字号 */
   --text-xs: 11px;
@@ -246,16 +245,19 @@ setTheme(saved ?? "system")
 ```
 
 **顶栏：**
+
 - 左侧：AirTerm 标题
 - 右侧：主题切换按钮（🌙/☀️）+ 设置齿轮
 - 毛玻璃效果 `backdrop-filter: blur(12px)`
 - 固定在顶部
 
 **统计栏：**
+
 - "3 个会话 · 2 运行中"
 - `text-secondary` 色
 
 **会话卡片：**
+
 - 需要确认的会话置顶，右上角 ⚠️ 图标
 - 运行中 ● 绿色脉冲动画
 - 已结束 ○ `text-muted` 色
@@ -263,6 +265,7 @@ setTheme(saved ?? "system")
 - 卡片内边距 16px
 
 **交互：**
+
 - 点击进入详情
 - 左滑显示操作（发消息 / 终止）
 - 下拉刷新
@@ -375,6 +378,7 @@ setTheme(saved ?? "system")
 ```
 
 **侧栏行为：**
+
 - 宽度固定 280px
 - 当前选中会话高亮（`accent-blue` 左边条）
 - 每个卡片显示：状态点、名称、摘要、⚠️ 图标
@@ -565,7 +569,7 @@ setTheme(saved ?? "system")
 .tool-card-header .collapse-icon {
   transition: transform var(--duration-fast);
 }
-.tool-card-header[aria-expanded="false"] .collapse-icon {
+.tool-card-header[aria-expanded='false'] .collapse-icon {
   transform: rotate(-90deg);
 }
 .tool-card-body {
@@ -575,11 +579,21 @@ setTheme(saved ?? "system")
 }
 
 /* 不同工具类型的左侧色条 */
-.tool-card[data-tool="Bash"]  { border-left-color: var(--accent-cyan); }
-.tool-card[data-tool="Edit"]  { border-left-color: var(--accent-yellow); }
-.tool-card[data-tool="Read"]  { border-left-color: var(--accent-blue); }
-.tool-card[data-tool="Write"] { border-left-color: var(--accent-green); }
-.tool-card[data-tool="Grep"]  { border-left-color: var(--accent-purple); }
+.tool-card[data-tool='Bash'] {
+  border-left-color: var(--accent-cyan);
+}
+.tool-card[data-tool='Edit'] {
+  border-left-color: var(--accent-yellow);
+}
+.tool-card[data-tool='Read'] {
+  border-left-color: var(--accent-blue);
+}
+.tool-card[data-tool='Write'] {
+  border-left-color: var(--accent-green);
+}
+.tool-card[data-tool='Grep'] {
+  border-left-color: var(--accent-purple);
+}
 ```
 
 ### 确认操作栏 (ApprovalBar)
@@ -806,46 +820,75 @@ setTheme(saved ?? "system")
 ```css
 /* 新消息出现 */
 @keyframes message-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 确认栏出现 */
 @keyframes approval-in {
-  0% { transform: translateY(100%); opacity: 0; }
-  70% { transform: translateY(-4px); }
-  100% { transform: translateY(0); opacity: 1; }
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  70% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* 状态点呼吸 */
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* 页面左右切换 */
 @keyframes slide-in-right {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 @keyframes slide-out-left {
-  from { transform: translateX(0); }
-  to { transform: translateX(-30%); opacity: 0.5; }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-30%);
+    opacity: 0.5;
+  }
 }
 
 /* 主题切换 — 平滑过渡 */
 :root {
-  transition: background-color var(--duration-slow),
-              color var(--duration-slow);
+  transition:
+    background-color var(--duration-slow),
+    color var(--duration-slow);
 }
 ```
 
 ### 触觉反馈
 
 ```typescript
-function hapticFeedback(style: "light" | "medium" | "heavy" = "light") {
-  if ("vibrate" in navigator) {
-    navigator.vibrate(style === "light" ? 10 : style === "medium" ? 20 : 30)
+function hapticFeedback(style: 'light' | 'medium' | 'heavy' = 'light') {
+  if ('vibrate' in navigator) {
+    navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 30)
   }
 }
 ```
@@ -873,10 +916,10 @@ function hapticFeedback(style: "light" | "medium" | "heavy" = "light") {
 
 /* 宽屏 — 支持多窗口分屏 */
 @media (min-width: 1200px) {
-  .layout[data-columns="2"] {
+  .layout[data-columns='2'] {
     grid-template-columns: 240px 1fr 1fr;
   }
-  .layout[data-columns="3"] {
+  .layout[data-columns='3'] {
     grid-template-columns: 200px 1fr 1fr 1fr;
   }
   .detail-panel {
@@ -917,7 +960,9 @@ body {
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

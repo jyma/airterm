@@ -178,29 +178,32 @@ apps/web/src/
 
 **安全修复集成：**
 
-| 修复项 | 实现位置 | 说明 |
-|--------|----------|------|
-| ★ 独立部署 | 部署配置 | 前端部署到 Cloudflare Pages / Vercel，**不在中继服务器上托管** |
-| 前端代码验证 | `PairPage.tsx` | 扫码时校验二维码中的 `frontend_hash` 与当前加载的 JS 哈希一致 |
-| SAS 验证 | `PairPage.tsx` | 配对完成后显示 4 位安全码，要求用户与 Mac 屏幕核对 |
-| 序列号验证 | `lib/crypto-layer.ts` | 接收消息时检查序列号递增，拒绝重放 |
-| CSP 严格化 | `index.html` / 服务器头 | `script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'` |
-| SRI | 构建输出 | 所有 JS/CSS 资源带 integrity 属性 |
+| 修复项       | 实现位置                | 说明                                                                     |
+| ------------ | ----------------------- | ------------------------------------------------------------------------ |
+| ★ 独立部署   | 部署配置                | 前端部署到 Cloudflare Pages / Vercel，**不在中继服务器上托管**           |
+| 前端代码验证 | `PairPage.tsx`          | 扫码时校验二维码中的 `frontend_hash` 与当前加载的 JS 哈希一致            |
+| SAS 验证     | `PairPage.tsx`          | 配对完成后显示 4 位安全码，要求用户与 Mac 屏幕核对                       |
+| 序列号验证   | `lib/crypto-layer.ts`   | 接收消息时检查序列号递增，拒绝重放                                       |
+| CSP 严格化   | `index.html` / 服务器头 | `script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'` |
+| SRI          | 构建输出                | 所有 JS/CSS 资源带 integrity 属性                                        |
 
 ### 2.2 核心页面
 
 **tmux 分屏视图 (SessionsPage)**
+
 - 垂直分割面板（手机 2-3 个，平板可更多）
 - 每个面板: PaneHeader + TerminalPane
 - 点击面板标题可展开为全屏
 
 **终端渲染 (TerminalPane)**
+
 - CLI 原生风格: `╭─ Claude` / `► Bash` / `► Edit`
 - diff 块用圆角深色/浅色背景 + 红绿色文字
 - 确认请求自动弹出 ApprovalBar
 - 等宽字体 Geist Mono
 
 **设置页 (SettingsPage)**
+
 - iOS 分组风格
 - 主题切换（系统/浅色/深色）
 - 已配对设备管理（查看/撤销）
@@ -211,28 +214,28 @@ apps/web/src/
 ```css
 :root {
   /* 浅色 (Apple Light) */
-  --bg-primary: #F5F5F7;
-  --bg-card: #FFFFFF;
-  --bg-terminal: #FAFAFA;
-  --text-primary: #1D1D1F;
-  --text-secondary: #86868B;
-  --accent: #0A84FF;
-  --green: #30D158;
-  --red: #FF453A;
-  --yellow: #FF9F0A;
+  --bg-primary: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-terminal: #fafafa;
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --accent: #0a84ff;
+  --green: #30d158;
+  --red: #ff453a;
+  --yellow: #ff9f0a;
 }
 
-[data-theme="dark"] {
+[data-theme='dark'] {
   /* 深色 (Apple Dark) */
-  --bg-primary: #1C1C1E;
-  --bg-card: #2C2C2E;
+  --bg-primary: #1c1c1e;
+  --bg-card: #2c2c2e;
   --bg-terminal: #000000;
-  --text-primary: #FFFFFF;
-  --text-secondary: #98989D;
-  --accent: #0A84FF;
-  --green: #30D158;
-  --red: #FF453A;
-  --yellow: #FFD60A;
+  --text-primary: #ffffff;
+  --text-secondary: #98989d;
+  --accent: #0a84ff;
+  --green: #30d158;
+  --red: #ff453a;
+  --yellow: #ffd60a;
 }
 ```
 
@@ -305,6 +308,7 @@ apps/mac/AirTerm/
 子进程模式不需要辅助功能权限，依赖更少，可更早完成联调。
 
 **Step 1: 骨架 + 引导 (2 天)**
+
 - SwiftUI 菜单栏应用骨架
 - 首次启动引导: 直接进入配对流程（不强制 AX 权限）
 - 设置偏好窗口（含服务器地址高级选项，默认 `relay.airterm.dev`）
@@ -326,18 +330,21 @@ protocol AgentAdapter {
 - 用户在终端面板中输入任意命令，体验与 iTerm2 一致
 
 **Step 3: StreamParser + 结构化事件 (2 天)**
+
 - 检测用户启动了 `claude` CLI
 - 通过 `--input-format stream-json` 获取结构化 JSON 事件流
 - 解析事件类型: message、diff、tool_call、approval、completion
 - 将结构化事件通过 AgentAdapter.onEvent 推送
 
 **Step 4: tmux 窗口管理 (3 天)**
+
 - TmuxView: 多面板分屏管理
 - 拖拽分割线调整面板大小
 - 侧栏展开/折叠
 - Tab 标签页切换
 
 **Step 5: 网络通信 + 配对 (3 天)**
+
 - RelayClient: URLSessionWebSocketTask + E2E 加密
 - 默认连接 `relay.airterm.dev`
 - 二维码生成 + SAS 安全码验证
@@ -349,6 +356,7 @@ protocol AgentAdapter {
 可在 3A 完成后顺序开发，或与 3A 并行推进。
 
 **Step 6: AccessibilityAdapter (3 天)**
+
 - 实现 AgentAdapter 协议
 - ProcessMonitor: 扫描外部终端中的 `claude` 进程
 - WindowMapper: PID → AXUIElement
@@ -357,20 +365,21 @@ protocol AgentAdapter {
 - ★ BundleIDValidator: 白名单验证
 
 **Step 7: AX 权限引导 + 集成 (2 天)**
+
 - 首次启动引导中包含辅助功能权限请求（可跳过）
 - 设置页中提供"外部终端监控"开关 + 分步截图指引
 - 会话列表中统一展示内置终端会话和外部终端会话，不区分来源
 
 ### 3.3 安全修复集成
 
-| 修复项 | 实现位置 | 说明 |
-|--------|----------|------|
-| ★ Accessibility 白名单 | `BundleIDValidator.swift` | AX 模式: 读写前验证目标窗口 bundle ID |
-| ★ SAS 验证 | `PairingView.swift` | 配对完成后显示 4 位安全码 |
-| ★ 前端哈希 | `QRCodeGenerator.swift` | 二维码包含前端 JS 的 SHA-256 哈希 |
-| ★ Certificate Pinning | `RelayClient.swift` | 首次连接记住证书，后续验证一致性 |
-| 危险命令增强 | `DangerousCommandFilter.swift` | 所有远程输入必须经 Mac 端弹窗确认 |
-| 序列号 | `Crypto/` | 消息收发维护递增序列号 |
+| 修复项                 | 实现位置                       | 说明                                  |
+| ---------------------- | ------------------------------ | ------------------------------------- |
+| ★ Accessibility 白名单 | `BundleIDValidator.swift`      | AX 模式: 读写前验证目标窗口 bundle ID |
+| ★ SAS 验证             | `PairingView.swift`            | 配对完成后显示 4 位安全码             |
+| ★ 前端哈希             | `QRCodeGenerator.swift`        | 二维码包含前端 JS 的 SHA-256 哈希     |
+| ★ Certificate Pinning  | `RelayClient.swift`            | 首次连接记住证书，后续验证一致性      |
+| 危险命令增强           | `DangerousCommandFilter.swift` | 所有远程输入必须经 Mac 端弹窗确认     |
+| 序列号                 | `Crypto/`                      | 消息收发维护递增序列号                |
 
 ### 3.4 测试
 
@@ -407,7 +416,7 @@ apps/web/src/lib/
 interface Transport {
   readonly type: 'lan' | 'wan'
   readonly state: 'connecting' | 'connected' | 'disconnected'
-  readonly latency: number  // 最近 RTT (ms)
+  readonly latency: number // 最近 RTT (ms)
 
   connect(): Promise<void>
   disconnect(): void
@@ -419,13 +428,14 @@ interface Transport {
 
 **TransportManager 状态机：**
 
-| 当前状态 | 事件 | 动作 | 新状态 |
-|---------|------|------|-------|
-| LAN active + WAN standby | LAN 心跳超时 | 切到 WAN，重传未 ack 消息 | WAN active + LAN reconnecting |
-| WAN active + LAN reconnecting | LAN 探测成功 | 认证 + 序列号同步 | LAN active + WAN standby |
-| 双通道 disconnected | 任一通道恢复 | 切到已恢复通道 | 单通道 active |
+| 当前状态                      | 事件         | 动作                      | 新状态                        |
+| ----------------------------- | ------------ | ------------------------- | ----------------------------- |
+| LAN active + WAN standby      | LAN 心跳超时 | 切到 WAN，重传未 ack 消息 | WAN active + LAN reconnecting |
+| WAN active + LAN reconnecting | LAN 探测成功 | 认证 + 序列号同步         | LAN active + WAN standby      |
+| 双通道 disconnected           | 任一通道恢复 | 切到已恢复通道            | 单通道 active                 |
 
 **消息队列：**
+
 - 发送时分配 seq，消息入队
 - 收到 ack >= seq 时从队列移除
 - 超时 3 秒未 ack → 重发（最多 3 次）
@@ -445,6 +455,7 @@ apps/mac/AirTerm/Network/
 ```
 
 **LANServer 关键参数：**
+
 - 监听: `0.0.0.0:<random-port>`
 - 协议: WebSocket over TCP（无 TLS）
 - 最大连接数: 5（含未认证）
@@ -452,6 +463,7 @@ apps/mac/AirTerm/Network/
 - 失败封禁: 5 次/10 分钟/IP
 
 **IP 变化检测：**
+
 - 监听 `NWPathMonitor` 网络变化事件
 - IP 变化时通过 WAN E2EE 信道推送 `lan_info` 给所有已配对手机
 
@@ -477,13 +489,13 @@ apps/mac/AirTerm/Network/
 
 ### 4.4 修改现有模块
 
-| 模块 | 修改内容 |
-|------|---------|
+| 模块                             | 修改内容                  |
+| -------------------------------- | ------------------------- |
 | `apps/web/hooks/useWebSocket.ts` | 改为使用 TransportManager |
-| `apps/web/lib/crypto-layer.ts` | 消息结构增加 seq/ack |
-| `apps/web/lib/key-store.ts` | 增加 LAN 地址缓存 |
-| `packages/crypto/envelope.ts` | 信封增加 seq/ack 字段 |
-| `packages/crypto/sequence.ts` | 增加 ACK 窗口管理 |
+| `apps/web/lib/crypto-layer.ts`   | 消息结构增加 seq/ack      |
+| `apps/web/lib/key-store.ts`      | 增加 LAN 地址缓存         |
+| `packages/crypto/envelope.ts`    | 信封增加 seq/ack 字段     |
+| `packages/crypto/sequence.ts`    | 增加 ACK 窗口管理         |
 
 ### 4.5 测试
 
@@ -502,37 +514,37 @@ apps/mac/AirTerm/Network/
 
 ### 5.1 三端联调（LAN 模式）
 
-| 测试场景 | 验证内容 |
-|----------|----------|
-| LAN 配对 | 扫码 → 配对完成 → 自动发现 LAN → 直连 |
+| 测试场景     | 验证内容                                  |
+| ------------ | ----------------------------------------- |
+| LAN 配对     | 扫码 → 配对完成 → 自动发现 LAN → 直连     |
 | LAN 消息收发 | Mac 终端输出 → E2EE → LAN 直连 → 手机渲染 |
-| LAN 远程输入 | 手机输入 → E2EE → LAN 直连 → Mac 终端 |
-| LAN 延迟 | 端到端延迟 < 50ms |
+| LAN 远程输入 | 手机输入 → E2EE → LAN 直连 → Mac 终端     |
+| LAN 延迟     | 端到端延迟 < 50ms                         |
 
 ### 5.2 通道切换联调
 
-| 测试场景 | 验证内容 |
-|----------|----------|
-| LAN → WAN 故障转移 | 断开 WiFi → < 1 秒切到 WAN → 消息无丢失 |
-| WAN → LAN 升级 | 重新连 WiFi → 自动切回 LAN → 消息无丢失 |
-| 双通道同时断开 | WiFi 断 + 服务器断 → 两者都重连 → 恢复后消息重发 |
-| IP 地址变化 | Mac 换网络 → 推送新 lan_info → 手机重连 |
-| 频繁切换 | 反复开关 WiFi → 消息序列完整无重复 |
+| 测试场景           | 验证内容                                         |
+| ------------------ | ------------------------------------------------ |
+| LAN → WAN 故障转移 | 断开 WiFi → < 1 秒切到 WAN → 消息无丢失          |
+| WAN → LAN 升级     | 重新连 WiFi → 自动切回 LAN → 消息无丢失          |
+| 双通道同时断开     | WiFi 断 + 服务器断 → 两者都重连 → 恢复后消息重发 |
+| IP 地址变化        | Mac 换网络 → 推送新 lan_info → 手机重连          |
+| 频繁切换           | 反复开关 WiFi → 消息序列完整无重复               |
 
 ### 5.3 安全验证
 
-| 测试场景 | 验证内容 |
-|----------|----------|
-| LAN 未配对设备 | 未配对设备连 LAN WS → challenge-response 失败 → 断开 |
-| LAN 认证封禁 | 连续 5 次认证失败 → IP 封禁 10 分钟 |
-| LAN 认证超时 | 连接后不回复 challenge → 3 秒后断开 |
-| ★ 服务器无法解密 | 在服务器日志中搜索明文内容 → 不应存在 |
-| ★ SAS 不一致拒绝 | 模拟 MITM 替换公钥 → SAS 码不一致 → 配对失败 |
-| ★ 重放攻击 | 截获加密消息重发 → 序列号校验失败 → 被拒绝 |
-| ★ JWT 吊销 | 撤销设备后使用旧 JWT → 认证失败 |
-| ★ 非终端窗口保护 | 尝试向非终端应用写入 → bundle ID 校验失败 → 被拒绝 |
-| ★ 前端代码篡改 | 修改前端 JS → 哈希校验失败 → 配对中止 |
-| 配对码暴力破解 | 连续错误尝试 → 第 3 次后配对码作废 |
+| 测试场景         | 验证内容                                             |
+| ---------------- | ---------------------------------------------------- |
+| LAN 未配对设备   | 未配对设备连 LAN WS → challenge-response 失败 → 断开 |
+| LAN 认证封禁     | 连续 5 次认证失败 → IP 封禁 10 分钟                  |
+| LAN 认证超时     | 连接后不回复 challenge → 3 秒后断开                  |
+| ★ 服务器无法解密 | 在服务器日志中搜索明文内容 → 不应存在                |
+| ★ SAS 不一致拒绝 | 模拟 MITM 替换公钥 → SAS 码不一致 → 配对失败         |
+| ★ 重放攻击       | 截获加密消息重发 → 序列号校验失败 → 被拒绝           |
+| ★ JWT 吊销       | 撤销设备后使用旧 JWT → 认证失败                      |
+| ★ 非终端窗口保护 | 尝试向非终端应用写入 → bundle ID 校验失败 → 被拒绝   |
+| ★ 前端代码篡改   | 修改前端 JS → 哈希校验失败 → 配对中止                |
+| 配对码暴力破解   | 连续错误尝试 → 第 3 次后配对码作废                   |
 
 ---
 
@@ -542,16 +554,16 @@ apps/mac/AirTerm/Network/
 
 ### 6.1 性能验证
 
-| 指标 | 目标 |
-|------|------|
-| LAN 端到端延迟 | < 50ms |
-| WAN 端到端延迟 | < 200ms |
-| 通道切换延迟 | < 1 秒 |
-| 终端内容同步延迟 | < 1 秒 |
-| 远程输入到达延迟 | < 500ms |
-| Mac 端 CPU 占用 | < 3% |
-| Mac 端内存占用 | < 50MB |
-| 手机 Web 首次加载 | < 2 秒 |
+| 指标              | 目标    |
+| ----------------- | ------- |
+| LAN 端到端延迟    | < 50ms  |
+| WAN 端到端延迟    | < 200ms |
+| 通道切换延迟      | < 1 秒  |
+| 终端内容同步延迟  | < 1 秒  |
+| 远程输入到达延迟  | < 500ms |
+| Mac 端 CPU 占用   | < 3%    |
+| Mac 端内存占用    | < 50MB  |
+| 手机 Web 首次加载 | < 2 秒  |
 
 ### 6.2 内测
 
@@ -566,47 +578,47 @@ apps/mac/AirTerm/Network/
 
 ### P0 — 发布前必修
 
-| # | 问题 | 严重程度 | 修复方案 | Phase |
-|---|------|----------|----------|-------|
-| S1 | 前端与中继服务器同域托管，恶意服务器可注入后门 JS | CRITICAL | 前端独立部署（Cloudflare Pages），二维码包含 JS 哈希，手机端校验 | 1, 2 |
-| S2 | 配对阶段手机公钥经服务器中转，可被 MITM | CRITICAL | 配对完成后双方显示 SAS 安全码（4 位数字），用户目视确认一致 | 0, 2, 3 |
-| S3 | 无消息重放防护 | HIGH | 每个方向维护递增序列号，纳入 AEAD 的 AAD | 0 |
-| S4 | Accessibility API 权限无边界限制 | HIGH | InputHandler 操作前验证目标窗口 bundle ID 白名单 | 3 |
-| S5 | JWT 30 天有效期 + 无吊销机制 | HIGH | access token 15 分钟 + refresh token + 服务器端黑名单 | 1 |
+| #   | 问题                                              | 严重程度 | 修复方案                                                         | Phase   |
+| --- | ------------------------------------------------- | -------- | ---------------------------------------------------------------- | ------- |
+| S1  | 前端与中继服务器同域托管，恶意服务器可注入后门 JS | CRITICAL | 前端独立部署（Cloudflare Pages），二维码包含 JS 哈希，手机端校验 | 1, 2    |
+| S2  | 配对阶段手机公钥经服务器中转，可被 MITM           | CRITICAL | 配对完成后双方显示 SAS 安全码（4 位数字），用户目视确认一致      | 0, 2, 3 |
+| S3  | 无消息重放防护                                    | HIGH     | 每个方向维护递增序列号，纳入 AEAD 的 AAD                         | 0       |
+| S4  | Accessibility API 权限无边界限制                  | HIGH     | InputHandler 操作前验证目标窗口 bundle ID 白名单                 | 3       |
+| S5  | JWT 30 天有效期 + 无吊销机制                      | HIGH     | access token 15 分钟 + refresh token + 服务器端黑名单            | 1       |
 
 ### P1 — V1.0 前修复
 
-| # | 问题 | 严重程度 | 修复方案 | Phase |
-|---|------|----------|----------|-------|
-| S6 | .env.example 缺少 DB_ENCRYPTION_KEY | HIGH | 补全变量 + 启动时校验 | 0 |
-| S7 | SQLCipher pragma 字符串拼接注入 | HIGH | 参数化 pragma 调用 + key 格式校验 | 1 |
-| S8 | 危险命令拦截可被绕过 | MEDIUM | 所有远程输入必须 Mac 弹窗确认，不依赖字符串匹配 | 3 |
-| S9 | 心跳消息未加密 | MEDIUM | 心跳也走 E2E 加密信封 | 0, 1 |
-| S10 | 消息大小侧信道 | MEDIUM | 消息 padding 到 1KB 倍数 | 0 |
+| #   | 问题                                | 严重程度 | 修复方案                                        | Phase |
+| --- | ----------------------------------- | -------- | ----------------------------------------------- | ----- |
+| S6  | .env.example 缺少 DB_ENCRYPTION_KEY | HIGH     | 补全变量 + 启动时校验                           | 0     |
+| S7  | SQLCipher pragma 字符串拼接注入     | HIGH     | 参数化 pragma 调用 + key 格式校验               | 1     |
+| S8  | 危险命令拦截可被绕过                | MEDIUM   | 所有远程输入必须 Mac 弹窗确认，不依赖字符串匹配 | 3     |
+| S9  | 心跳消息未加密                      | MEDIUM   | 心跳也走 E2E 加密信封                           | 0, 1  |
+| S10 | 消息大小侧信道                      | MEDIUM   | 消息 padding 到 1KB 倍数                        | 0     |
 
 ### P2 — 后续迭代
 
-| # | 问题 | 严重程度 | 修复方案 | Phase |
-|---|------|----------|----------|-------|
-| S11 | 配对码熵不足 (36^6) | MEDIUM | 8 位 alphanumeric (62^8) + 3 次失败作废 | 1 |
-| S12 | Web 端密钥存储依赖浏览器 | MEDIUM | 严格 CSP + SRI + derived key 使用限制 | 2 |
-| S13 | 无前向保密 | LOW | 定期密钥轮换（每 24h）或 Double Ratchet | 后续 |
-| S14 | 审计日志无防篡改 | LOW | append-only hash chain | 后续 |
-| S15 | 重连无 certificate pinning | LOW | 首次连接记住证书指纹 | 3 |
+| #   | 问题                       | 严重程度 | 修复方案                                | Phase |
+| --- | -------------------------- | -------- | --------------------------------------- | ----- |
+| S11 | 配对码熵不足 (36^6)        | MEDIUM   | 8 位 alphanumeric (62^8) + 3 次失败作废 | 1     |
+| S12 | Web 端密钥存储依赖浏览器   | MEDIUM   | 严格 CSP + SRI + derived key 使用限制   | 2     |
+| S13 | 无前向保密                 | LOW      | 定期密钥轮换（每 24h）或 Double Ratchet | 后续  |
+| S14 | 审计日志无防篡改           | LOW      | append-only hash chain                  | 后续  |
+| S15 | 重连无 certificate pinning | LOW      | 首次连接记住证书指纹                    | 3     |
 
 ---
 
 ## 技术栈确认
 
-| 组件 | 技术 | 版本 |
-|------|------|------|
-| 加密 | @noble/curves + @noble/ciphers | ^1.0 |
-| 服务器 | Hono + ws + better-sqlite3 + SQLCipher | Hono 4, ws 8 |
-| Web 前端 | React 19 + Vite 6 + Tailwind 4 | 最新 |
-| Mac 应用 | Swift + SwiftUI + pty + Accessibility API | Swift 5.9+ |
-| 测试 | vitest (TS) + XCTest (Swift) | 最新 |
-| 部署 | Docker (服务器) + Cloudflare Pages (前端) | - |
-| CI/CD | GitHub Actions | - |
+| 组件     | 技术                                      | 版本         |
+| -------- | ----------------------------------------- | ------------ |
+| 加密     | @noble/curves + @noble/ciphers            | ^1.0         |
+| 服务器   | Hono + ws + better-sqlite3 + SQLCipher    | Hono 4, ws 8 |
+| Web 前端 | React 19 + Vite 6 + Tailwind 4            | 最新         |
+| Mac 应用 | Swift + SwiftUI + pty + Accessibility API | Swift 5.9+   |
+| 测试     | vitest (TS) + XCTest (Swift)              | 最新         |
+| 部署     | Docker (服务器) + Cloudflare Pages (前端) | -            |
+| CI/CD    | GitHub Actions                            | -            |
 
 ---
 
@@ -614,26 +626,26 @@ apps/mac/AirTerm/Network/
 
 ### MVP 核心验证（明文通信，跑通链路）
 
-| 里程碑 | 内容 | 预估 |
-|--------|------|------|
-| M0 | 项目初始化 + 消息协议定义 | 第 1 周 |
-| M1 | 服务器可运行 + 配对流程 + 公共实例部署 | 第 1-2 周 |
-| M2 | Web 前端可配对 + 查看终端输出 | 第 2-3 周 |
-| M3a | Mac 子进程模式可用（内置终端 + stream-json） | 第 3-4 周 |
-| M3b | Mac AX API 模式可用（外部终端监控） | 第 4-5 周 |
+| 里程碑  | 内容                                           | 预估          |
+| ------- | ---------------------------------------------- | ------------- |
+| M0      | 项目初始化 + 消息协议定义                      | 第 1 周       |
+| M1      | 服务器可运行 + 配对流程 + 公共实例部署         | 第 1-2 周     |
+| M2      | Web 前端可配对 + 查看终端输出                  | 第 2-3 周     |
+| M3a     | Mac 子进程模式可用（内置终端 + stream-json）   | 第 3-4 周     |
+| M3b     | Mac AX API 模式可用（外部终端监控）            | 第 4-5 周     |
 | **M3c** | **三端联调：Mac → 服务器 → 手机 完整链路跑通** | **第 5-6 周** |
 
 ### 安全加固
 
-| 里程碑 | 内容 | 预估 |
-|--------|------|------|
-| M4 | E2EE 加密模块 + 集成到全链路 | 第 6-8 周 |
-| M5 | 安全修复（JWT 短期化、SQLCipher、SAS 验证等） | 第 8-9 周 |
+| 里程碑 | 内容                                          | 预估      |
+| ------ | --------------------------------------------- | --------- |
+| M4     | E2EE 加密模块 + 集成到全链路                  | 第 6-8 周 |
+| M5     | 安全修复（JWT 短期化、SQLCipher、SAS 验证等） | 第 8-9 周 |
 
 ### 后续阶段
 
-| 里程碑 | 内容 | 预估 |
-|--------|------|------|
-| M6 | 原生移动壳 + LAN 直连 + 推送通知 | 待定 |
+| 里程碑 | 内容                             | 预估 |
+| ------ | -------------------------------- | ---- |
+| M6     | 原生移动壳 + LAN 直连 + 推送通知 | 待定 |
 
 **关键路径:** M0 → M1 → M2 并行 M3a → M3c 联调。M3b 可与 M3a 并行推进。核心链路跑通后再叠加安全层。

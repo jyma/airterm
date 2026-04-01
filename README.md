@@ -79,13 +79,13 @@ open AirTerm.xcodeproj
 
 ## 技术栈
 
-| 组件 | 技术 |
-|------|------|
-| Mac 应用 | Swift, SwiftUI, Accessibility API |
-| 中继服务器 | TypeScript, Hono, WebSocket |
-| Web 前端 | React, Tailwind CSS |
-| 加密 | X25519, ChaCha20-Poly1305 |
-| 部署 | Docker, Let's Encrypt |
+| 组件       | 技术                              |
+| ---------- | --------------------------------- |
+| Mac 应用   | Swift, SwiftUI, Accessibility API |
+| 中继服务器 | TypeScript, Hono, WebSocket       |
+| Web 前端   | React, Tailwind CSS               |
+| 加密       | X25519, ChaCha20-Poly1305         |
+| 部署       | Docker, Let's Encrypt             |
 
 ## 文档
 
