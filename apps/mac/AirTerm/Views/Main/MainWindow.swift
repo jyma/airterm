@@ -19,6 +19,16 @@ struct MainWindow: View {
             }
         }
         .frame(minWidth: 700, minHeight: 500)
+        .onChange(of: appState.sessions.count) { _, _ in
+            if appState.selectedSessionId == nil, let first = appState.sessions.first {
+                appState.selectedSessionId = first.id
+            }
+        }
+        .onAppear {
+            if appState.selectedSessionId == nil, let first = appState.sessions.first {
+                appState.selectedSessionId = first.id
+            }
+        }
     }
 
     @ViewBuilder
@@ -48,6 +58,12 @@ struct MainWindow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                        if !session.lastOutput.isEmpty {
+                            Text(session.lastOutput)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(2)
+                        }
                     }
                 }
                 Spacer()
@@ -112,23 +128,32 @@ struct SessionDetailView: View {
             Divider()
 
             // Terminal output
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(events.enumerated()), id: \.offset) { idx, event in
-                            eventView(event)
-                                .id(idx)
+            if events.isEmpty {
+                ContentUnavailableView(
+                    "等待终端输出",
+                    systemImage: "terminal",
+                    description: Text("当终端有新内容时会自动显示")
+                )
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(events.enumerated()), id: \.offset) { idx, event in
+                                eventView(event)
+                                    .id(idx)
+                            }
+                        }
+                        .padding(12)
+                    }
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .onChange(of: events.count) { _, newCount in
+                        withAnimation {
+                            proxy.scrollTo(newCount - 1, anchor: .bottom)
                         }
                     }
-                    .padding(16)
                 }
-                .onChange(of: events.count) { _, newCount in
-                    withAnimation {
-                        proxy.scrollTo(newCount - 1, anchor: .bottom)
-                    }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
@@ -155,18 +180,10 @@ struct SessionDetailView: View {
     private func eventView(_ event: TerminalEvent) -> some View {
         switch event {
         case .message(let text):
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Claude")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(text)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
+            Text(text)
+                .font(.system(size: 12, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
         case .diff(let file, let hunks):
             VStack(alignment: .leading, spacing: 0) {

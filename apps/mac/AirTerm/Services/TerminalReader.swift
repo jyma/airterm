@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import ApplicationServices
 
 /// Reads text content from a terminal window using the Accessibility API.
@@ -19,26 +20,49 @@ final class TerminalReader: @unchecked Sendable {
         AXIsProcessTrusted()
     }
 
+    /// Check if screen recording permission is granted (needed for window enumeration on macOS 15+)
+    static var hasScreenCapturePermission: Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
     /// Prompt user to grant Accessibility permissions
     static func requestPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Prompt user to grant Screen Recording permissions and open System Settings
+    static func requestScreenCapturePermission() {
+        CGRequestScreenCaptureAccess()
+        // Also open System Settings directly to the Screen Recording pane
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// Read the full text content of a terminal window
     func read(from window: AXUIElement) -> ReadResult? {
-        // Strategy 1: Try to get the AXValue (text content) directly
+        // Strategy 1 (highest priority): AXTextArea deep in the tree
+        // Terminal.app: Window → SplitGroup → ScrollArea → AXTextArea
+        if let text = readViaTextArea(from: window), text.count > 30 {
+            return processText(text)
+        }
+
+        // Strategy 2: AXStaticText children (some terminals)
+        if let text = readViaStaticText(from: window), text.count > 30 {
+            return processText(text)
+        }
+
+        // Strategy 3: Direct AXValue on the window element
         if let text = readViaValue(from: window) {
             return processText(text)
         }
 
-        // Strategy 2: Try to get text via AXStaticText children
-        if let text = readViaStaticText(from: window) {
+        // Fallback: accept shorter text from any strategy
+        if let text = readViaTextArea(from: window) {
             return processText(text)
         }
-
-        // Strategy 3: Try to get text via AXTextArea
-        if let text = readViaTextArea(from: window) {
+        if let text = readViaStaticText(from: window) {
             return processText(text)
         }
 
@@ -47,18 +71,21 @@ final class TerminalReader: @unchecked Sendable {
 
     /// Read only the new/changed content since last read
     func readDelta(from window: AXUIElement) -> String? {
+        // Save previous state before read() updates it
+        let oldText = previousText
+
         guard let result = read(from: window), result.isChanged else {
             return nil
         }
 
-        // Find what's new compared to previous text
-        if previousText.isEmpty {
+        // First read ever — return full text
+        if oldText.isEmpty {
             return result.text
         }
 
         // Simple delta: if new text starts with old text, return the suffix
-        if result.text.hasPrefix(previousText) {
-            let delta = String(result.text.dropFirst(previousText.count))
+        if result.text.hasPrefix(oldText) {
+            let delta = String(result.text.dropFirst(oldText.count))
             return delta.isEmpty ? nil : delta
         }
 

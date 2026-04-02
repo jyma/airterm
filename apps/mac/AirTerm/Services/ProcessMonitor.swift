@@ -6,6 +6,7 @@ struct DiscoveredProcess: Sendable {
     let pid: pid_t
     let command: String           // e.g. "claude"
     let cwd: String               // working directory
+    let tty: String               // e.g. "ttys001"
     let terminalBundleId: String  // e.g. "com.googlecode.iterm2"
     let terminalName: String      // e.g. "iTerm2"
     let discoveredAt: Date
@@ -43,13 +44,21 @@ final class ProcessMonitor: @unchecked Sendable {
         self.targetCommands = targetCommands
     }
 
+    private let workQueue = DispatchQueue(label: "airterm.process-monitor", qos: .utility)
+
     /// Start scanning every `interval` seconds
     func start(interval: TimeInterval = 2.0) {
+        DebugLog.log("[ProcessMonitor] start() called, interval=\(interval)")
         stop()
-        scan() // immediate first scan
+        workQueue.async { [weak self] in
+            DebugLog.log("[ProcessMonitor] Initial scan starting")
+            self?.scan()
+        }
         DispatchQueue.main.async { [weak self] in
             self?.timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-                self?.scan()
+                self?.workQueue.async { [weak self] in
+                    self?.scan()
+                }
             }
         }
     }
@@ -65,15 +74,27 @@ final class ProcessMonitor: @unchecked Sendable {
         let foundPIDs = Set(found.map(\.pid))
 
         // New processes
-        for proc in found where !knownPIDs.contains(proc.pid) {
+        let newProcs = found.filter { !knownPIDs.contains($0.pid) }
+        for proc in newProcs {
             knownPIDs.insert(proc.pid)
-            onProcessDiscovered?(proc)
         }
 
         // Exited processes
-        for pid in knownPIDs where !foundPIDs.contains(pid) {
+        let exitedPIDs = knownPIDs.filter { !foundPIDs.contains($0) }
+        for pid in exitedPIDs {
             knownPIDs.remove(pid)
-            onProcessExited?(pid)
+        }
+
+        // Dispatch callbacks on main thread (AX API and NSRunningApplication require it)
+        if !newProcs.isEmpty || !exitedPIDs.isEmpty {
+            DispatchQueue.main.async { [weak self] in
+                for proc in newProcs {
+                    self?.onProcessDiscovered?(proc)
+                }
+                for pid in exitedPIDs {
+                    self?.onProcessExited?(pid)
+                }
+            }
         }
     }
 
@@ -85,19 +106,27 @@ final class ProcessMonitor: @unchecked Sendable {
         let pipe = Pipe()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-eo", "pid,ppid,comm"]
+        process.arguments = ["-eo", "pid,ppid,tty,comm"]
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
+            DebugLog.log("[ProcessMonitor] Failed to run ps: \(error)")
             return results
         }
 
+        // Read ALL data BEFORE waitUntilExit to avoid pipe-buffer deadlock
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else { return results }
+        process.waitUntilExit()
+
+        guard let output = String(data: data, encoding: .utf8) else {
+            DebugLog.log("[ProcessMonitor] Failed to decode ps output")
+            return results
+        }
+
+        DebugLog.log("[ProcessMonitor] ps returned \(output.components(separatedBy: "\n").count) lines, scanning for: \(targetCommands)")
 
         // Parse ps output to find target commands
         let lines = output.components(separatedBy: "\n")
@@ -105,30 +134,38 @@ final class ProcessMonitor: @unchecked Sendable {
             let parts = line.trimmingCharacters(in: .whitespaces)
                 .components(separatedBy: .whitespaces)
                 .filter { !$0.isEmpty }
-            guard parts.count >= 3 else { continue }
+            guard parts.count >= 4 else { continue }
 
             guard let pid = Int32(parts[0]),
                   let ppid = Int32(parts[1]) else { continue }
 
-            let comm = parts[2]
+            let tty = parts[2]  // e.g. "ttys001" or "??"
+            let comm = parts[3]
             let baseName = (comm as NSString).lastPathComponent
 
             guard targetCommands.contains(baseName) else { continue }
 
+            DebugLog.log("[ProcessMonitor] Found target: pid=\(pid) ppid=\(ppid) tty=\(tty) comm=\(comm)")
+
             // Find which terminal owns this process by walking up the process tree
             if let terminal = findParentTerminal(pid: ppid) {
                 let cwd = getProcessCwd(pid: pid)
+                DebugLog.log("[ProcessMonitor] Matched terminal: \(terminal.bundleIdentifier ?? "?") pid=\(terminal.processIdentifier)")
                 results.append(DiscoveredProcess(
                     pid: pid,
                     command: baseName,
                     cwd: cwd,
+                    tty: tty,
                     terminalBundleId: terminal.bundleIdentifier ?? "unknown",
                     terminalName: Self.terminalNames[terminal.bundleIdentifier ?? ""] ?? terminal.localizedName ?? "Unknown",
                     discoveredAt: Date()
                 ))
+            } else {
+                DebugLog.log("[ProcessMonitor] No terminal found for pid=\(pid)")
             }
         }
 
+        DebugLog.log("[ProcessMonitor] Scan complete: \(results.count) processes found")
         return results
     }
 
@@ -183,12 +220,12 @@ final class ProcessMonitor: @unchecked Sendable {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return "~"
         }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         guard let output = String(data: data, encoding: .utf8) else { return "~" }
 
         // Parse lsof output: lines starting with "n" contain the path

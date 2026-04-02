@@ -13,6 +13,9 @@ final class AppState {
     var pairInfo: PairInfo?
     var selectedSessionId: String?
     var accessibilityEnabled = false
+    var needsOnboarding: Bool {
+        !UserDefaults.standard.bool(forKey: "onboarding-completed")
+    }
 
     // Configuration
     var serverURL: String {
@@ -40,6 +43,16 @@ final class AppState {
     private(set) var inputHandler: InputHandler?
 
     func setup() {
+        DebugLog.log("[AppState] setup() called, AX=\(TerminalReader.hasPermission), screenCapture=\(TerminalReader.hasScreenCapturePermission)")
+
+        // Load persisted paired devices
+        loadPairedDevices()
+
+        // Auto-reconnect if we have a saved token
+        if let token = pairedDevices.first?.token, !token.isEmpty {
+            connectRelay(token: token)
+        }
+
         // Subprocess mode (always available)
         let subprocess = SubprocessAdapter()
         self.subprocessAdapter = subprocess
@@ -54,15 +67,32 @@ final class AppState {
 
         self.inputHandler = InputHandler(adapter: subprocess)
 
-        // Accessibility mode (if permission granted)
+        // Accessibility mode — always try to enable, poll if needed
         if TerminalReader.hasPermission {
             enableAccessibility()
+        } else {
+            DebugLog.log("[AppState] No AX permission at startup, starting poll")
+            startPermissionPolling()
         }
     }
 
     /// Enable AX API monitoring for external terminals
     func enableAccessibility() {
-        guard accessibilityAdapter == nil else { return }
+        guard TerminalReader.hasPermission else {
+            DebugLog.log("[AppState] enableAccessibility called but no AX permission")
+            return
+        }
+
+        // Screen capture permission is needed to enumerate other apps' windows (macOS 15+)
+        if !TerminalReader.hasScreenCapturePermission {
+            DebugLog.log("[AppState] No screen capture permission, requesting...")
+            TerminalReader.requestScreenCapturePermission()
+        }
+
+        // Stop existing adapter if re-enabling
+        if let existing = accessibilityAdapter {
+            existing.stopMonitoring()
+        }
 
         let axAdapter = AccessibilityAdapter()
         self.accessibilityAdapter = axAdapter
@@ -76,16 +106,43 @@ final class AppState {
             }
         }
 
+        DebugLog.log("[AppState] Starting AX monitoring")
         axAdapter.startMonitoring()
     }
 
     /// Request AX permission and enable if granted
     func requestAccessibility() {
+        if TerminalReader.hasPermission {
+            // Already have permission, just enable
+            enableAccessibility()
+            return
+        }
+
         TerminalReader.requestPermission()
-        // Check again after a short delay (user may grant permission)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        // Poll for permission grant (user may take time in System Settings)
+        startPermissionPolling()
+    }
+
+    private var permissionPollTimer: Timer?
+
+    private func startPermissionPolling() {
+        permissionPollTimer?.invalidate()
+        var attempts = 0
+        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            attempts += 1
             if TerminalReader.hasPermission {
-                self?.enableAccessibility()
+                timer.invalidate()
+                DispatchQueue.main.async { [weak self] in
+                    self?.permissionPollTimer = nil
+                    DebugLog.log("[AppState] AX permission granted after \(attempts)s")
+                    self?.enableAccessibility()
+                }
+            } else if attempts >= 60 {
+                timer.invalidate()
+                DispatchQueue.main.async { [weak self] in
+                    self?.permissionPollTimer = nil
+                    DebugLog.log("[AppState] AX permission polling timed out")
+                }
             }
         }
     }
@@ -184,10 +241,11 @@ final class AppState {
             id: phoneDeviceId,
             name: phoneName,
             role: "phone",
-            token: "",
+            token: pairInfo?.token ?? "",
             pairedAt: Date()
         )
         pairedDevices.append(device)
+        persistPairedDevices()
         isPairing = false
         pairInfo = nil
 
@@ -312,5 +370,37 @@ final class AppState {
     private func routeApproval(_ allow: Bool, sessionId: String) {
         let response = allow ? "y" : "n"
         routeInput(response, sessionId: sessionId)
+        // Reset needsApproval flag
+        if let idx = sessions.firstIndex(where: { $0.id == sessionId }) {
+            sessions[idx].needsApproval = false
+        }
+    }
+
+    // MARK: - Public Input Routing (for Mac-side UI)
+
+    /// Route input from Mac UI to the correct adapter
+    func sendInputFromUI(_ text: String, sessionId: String) {
+        routeInput(text, sessionId: sessionId)
+    }
+
+    /// Route approval from Mac UI to the correct adapter
+    func sendApprovalFromUI(_ allow: Bool, sessionId: String) {
+        routeApproval(allow, sessionId: sessionId)
+    }
+
+    // MARK: - Persistence
+
+    private func persistPairedDevices() {
+        if let data = try? JSONEncoder().encode(pairedDevices) {
+            UserDefaults.standard.set(data, forKey: "pairedDevices")
+        }
+    }
+
+    private func loadPairedDevices() {
+        guard let data = UserDefaults.standard.data(forKey: "pairedDevices"),
+              let devices = try? JSONDecoder().decode([PairedDevice].self, from: data) else {
+            return
+        }
+        pairedDevices = devices
     }
 }

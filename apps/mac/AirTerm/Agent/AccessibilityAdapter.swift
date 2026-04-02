@@ -11,9 +11,11 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
     private var parsers: [String: OutputParser] = [:]
     private var windows: [String: WindowMapper.MappedWindow] = [:]
     private var pidToSessionId: [pid_t: String] = [:]
+    private var sessionTty: [String: String] = [:]  // sessionId -> tty (e.g. "ttys001")
     private var eventHandler: (@Sendable (String, TerminalEvent) -> Void)?
 
     private let processMonitor = ProcessMonitor()
+    private let scriptingReader = ScriptingReader()
     private var readTimer: Timer?
 
     var sessions: [Session] {
@@ -22,7 +24,9 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
 
     /// Start monitoring external terminals
     func startMonitoring() {
+        DebugLog.log("[AXAdapter] startMonitoring called, hasPermission=\(TerminalReader.hasPermission)")
         guard TerminalReader.hasPermission else {
+            DebugLog.log("[AXAdapter] No AX permission, requesting...")
             TerminalReader.requestPermission()
             return
         }
@@ -48,8 +52,19 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
     // MARK: - AgentAdapter
 
     func createSession(command: String, cwd: URL?) -> Session {
-        // AX mode doesn't create sessions — they're discovered
-        fatalError("AccessibilityAdapter does not create sessions. Use SubprocessAdapter.")
+        // AX mode discovers sessions automatically — return a placeholder that will be replaced
+        // by the next scan cycle. This should not be called in normal flow.
+        return Session(
+            id: UUID().uuidString,
+            name: command,
+            cwd: cwd?.path ?? "~",
+            terminal: "External",
+            status: .discovered,
+            source: .accessibility,
+            lastOutput: "",
+            needsApproval: false,
+            createdAt: Date()
+        )
     }
 
     func send(input: String, to sessionId: String) {
@@ -87,6 +102,7 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
             readers.removeValue(forKey: sessionId)
             parsers.removeValue(forKey: sessionId)
             windows.removeValue(forKey: sessionId)
+            sessionTty.removeValue(forKey: sessionId)
             if let pid = _sessions[sessionId].flatMap({ s in
                 pidToSessionId.first(where: { $0.value == s.id })?.key
             }) {
@@ -97,9 +113,22 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
 
     // MARK: - Process Discovery
 
+    private var hasDumpedAppTree = false
+
     private func handleProcessDiscovered(_ process: DiscoveredProcess) {
+        DebugLog.log("[AXAdapter] handleProcessDiscovered: pid=\(process.pid) cmd=\(process.command) terminal=\(process.terminalBundleId)")
+
+        // Dump full app AX tree once for diagnostics
+        if !hasDumpedAppTree {
+            hasDumpedAppTree = true
+            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: process.terminalBundleId).first {
+                AXTreeDumper.dumpAllWindows(appPid: app.processIdentifier)
+            }
+        }
+
         // Validate the terminal is in our whitelist
         guard case .success = BundleIDValidator.validateRead(bundleId: process.terminalBundleId) else {
+            DebugLog.log("[AXAdapter] Bundle ID \(process.terminalBundleId) not in whitelist, skipping")
             return
         }
 
@@ -107,30 +136,22 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
             name: "\(process.command) (\(process.terminalName))",
             cwd: process.cwd,
             terminal: process.terminalName,
-            status: .discovered,
+            status: .connected,
             source: .accessibility
         )
 
-        // Try to find the terminal window
-        let window = WindowMapper.findWindow(
-            for: process.pid,
-            terminalBundleId: process.terminalBundleId
-        )
+        let tty = process.tty
+        DebugLog.log("[AXAdapter] Creating session for pid=\(process.pid) tty=\(tty)")
 
         lock.withLock {
             _sessions[session.id] = session
             pidToSessionId[process.pid] = session.id
-            readers[session.id] = TerminalReader()
+            sessionTty[session.id] = tty
             parsers[session.id] = OutputParser()
-
-            if let window {
-                windows[session.id] = window
-                _sessions[session.id]?.status = .connected
-            }
         }
 
         let handler = lock.withLock { eventHandler }
-        handler?(session.id, .message(text: "Discovered \(process.command) in \(process.terminalName)"))
+        handler?(session.id, .message(text: "Discovered \(process.command) in \(process.terminalName) [\(tty)]"))
     }
 
     private func handleProcessExited(_ pid: pid_t) {
@@ -145,11 +166,14 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
 
     private func startReadingLoop() {
         DispatchQueue.main.async { [weak self] in
-            self?.readTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.readTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                // NSAppleScript must run on main thread
                 self?.readAllTerminals()
             }
         }
     }
+
+    private var readLoopCount = 0
 
     private func readAllTerminals() {
         let snapshot = lock.withLock {
@@ -157,24 +181,33 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
                 .filter { $0.1.status == .connected || $0.1.status == .active }
         }
 
+        guard !snapshot.isEmpty else { return }
+
+        readLoopCount += 1
+
+        // Read all Terminal.app tabs at once via AppleScript
+        let allTabs = scriptingReader.readAllTabs()
+        if readLoopCount <= 3 {
+            DebugLog.log("[AXAdapter] readAllTerminals: \(snapshot.count) sessions, \(allTabs.count) tabs: \(allTabs.keys.sorted())")
+        }
+
         for (sessionId, _) in snapshot {
-            readTerminal(sessionId: sessionId)
+            readTerminalViaScripting(sessionId: sessionId, allTabs: allTabs)
         }
     }
 
-    private func readTerminal(sessionId: String) {
-        let (reader, window, parser) = lock.withLock {
-            (readers[sessionId], windows[sessionId], parsers[sessionId])
+    private func readTerminalViaScripting(sessionId: String, allTabs: [String: ScriptingReader.TabContent]) {
+        let (tty, parser) = lock.withLock {
+            (sessionTty[sessionId], parsers[sessionId])
         }
-        guard let reader, let window, let parser else { return }
+        guard let tty, let parser else { return }
 
-        // Validate before reading
-        guard case .success = BundleIDValidator.validateRead(bundleId: window.bundleId) else {
-            return
+        // Read delta for this session's tty
+        let delta = scriptingReader.readDelta(tty: tty, allTabs: allTabs)
+        if readLoopCount <= 3 {
+            DebugLog.log("[AXAdapter] readDelta \(sessionId.prefix(8)) tty=\(tty): \(delta == nil ? "nil" : "\(delta!.count) chars")")
         }
-
-        // Read delta text
-        guard let delta = reader.readDelta(from: window.windowElement) else { return }
+        guard let delta else { return }
 
         // Update session status to active
         lock.withLock {
@@ -186,11 +219,18 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
             )
         }
 
-        // Parse into events
-        let events = parser.parseDelta(delta)
+        // For large initial reads, emit a single message event instead of per-line parsing
+        // to avoid flooding the UI with hundreds of events
         let handler = lock.withLock { eventHandler }
-        for event in events {
-            handler?(sessionId, event)
+        if delta.count > 500 {
+            // Trim to last ~2000 chars of content for display
+            let trimmed = String(delta.suffix(2000))
+            handler?(sessionId, .message(text: trimmed))
+        } else {
+            let events = parser.parseDelta(delta)
+            for event in events {
+                handler?(sessionId, event)
+            }
         }
 
         // Check for approval prompts
