@@ -7,6 +7,7 @@ import SwiftUI
 final class AppState {
     var sessions: [Session] = []
     var events: [String: [TerminalEvent]] = [:]
+    var terminalContents: [String: String] = [:]  // sessionId -> live terminal text
     var connectionState: RelayClient.State = .disconnected
     var pairedDevices: [PairedDevice] = []
     var isPairing = false
@@ -104,6 +105,10 @@ final class AppState {
                 self?.sendEventToAllPhones(sessionId: sessionId, event: event)
                 self?.refreshSessions()
             }
+        }
+
+        axAdapter.onContentUpdate { sessionId, content in
+            TerminalContentStore.shared.update(sessionId: sessionId, content: content)
         }
 
         DebugLog.log("[AppState] Starting AX monitoring")

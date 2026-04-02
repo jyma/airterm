@@ -13,6 +13,7 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
     private var pidToSessionId: [pid_t: String] = [:]
     private var sessionTty: [String: String] = [:]  // sessionId -> tty (e.g. "ttys001")
     private var eventHandler: (@Sendable (String, TerminalEvent) -> Void)?
+    private var contentHandler: (@Sendable (String, String) -> Void)?  // sessionId, fullContent
 
     private let processMonitor = ProcessMonitor()
     private let scriptingReader = ScriptingReader()
@@ -45,8 +46,7 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
 
     func stopMonitoring() {
         processMonitor.stop()
-        readTimer?.invalidate()
-        readTimer = nil
+        readLoopActive = false
     }
 
     // MARK: - AgentAdapter
@@ -68,18 +68,8 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
     }
 
     func send(input: String, to sessionId: String) {
-        lock.lock()
-        guard let window = windows[sessionId],
-              _sessions[sessionId] != nil else {
-            lock.unlock()
-            return
-        }
-        lock.unlock()
-
-        // Validate target is an allowed terminal app
-        guard case .success = BundleIDValidator.validateWrite(bundleId: window.bundleId) else {
-            return
-        }
+        let tty = lock.withLock { sessionTty[sessionId] }
+        guard let tty else { return }
 
         // Check for dangerous commands
         if DangerousCommandFilter.isDangerous(input) {
@@ -88,12 +78,25 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
             return
         }
 
-        // Inject keystrokes via CGEvent
-        injectKeystrokes(input + "\n", to: window)
+        // Write directly to tty device
+        let ttyPath = tty.hasPrefix("/dev/") ? tty : "/dev/\(tty)"
+        guard let handle = FileHandle(forWritingAtPath: ttyPath) else {
+            DebugLog.log("[AXAdapter] Cannot open tty \(ttyPath) for writing")
+            return
+        }
+        let text = input + "\n"
+        if let data = text.data(using: .utf8) {
+            handle.write(data)
+        }
+        handle.closeFile()
     }
 
     func onEvent(_ handler: @escaping @Sendable (String, TerminalEvent) -> Void) {
         lock.withLock { eventHandler = handler }
+    }
+
+    func onContentUpdate(_ handler: @escaping @Sendable (String, String) -> Void) {
+        lock.withLock { contentHandler = handler }
     }
 
     func terminateSession(_ sessionId: String) {
@@ -162,14 +165,22 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
         }
     }
 
+    private let readQueue = DispatchQueue(label: "airterm.terminal-read", qos: .userInitiated)
+    private var readLoopActive = false
+
     // MARK: - Terminal Reading Loop
 
     private func startReadingLoop() {
-        DispatchQueue.main.async { [weak self] in
-            self?.readTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                // NSAppleScript must run on main thread
-                self?.readAllTerminals()
-            }
+        readLoopActive = true
+        readQueue.async { [weak self] in
+            self?.readLoop()
+        }
+    }
+
+    private func readLoop() {
+        while readLoopActive {
+            readAllTerminals()
+            Thread.sleep(forTimeInterval: 1.0)
         }
     }
 
@@ -197,37 +208,40 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
     }
 
     private func readTerminalViaScripting(sessionId: String, allTabs: [String: ScriptingReader.TabContent]) {
-        let (tty, parser) = lock.withLock {
-            (sessionTty[sessionId], parsers[sessionId])
-        }
-        guard let tty, let parser else { return }
+        let tty = lock.withLock { sessionTty[sessionId] }
+        guard let tty else { return }
 
-        // Read delta for this session's tty
+        // Get full content for this tab
+        guard let tab = allTabs[tty] else { return }
+        let fullContent = tab.contents
+
+        // Check if content changed
         let delta = scriptingReader.readDelta(tty: tty, allTabs: allTabs)
-        if readLoopCount <= 3 {
-            DebugLog.log("[AXAdapter] readDelta \(sessionId.prefix(8)) tty=\(tty): \(delta == nil ? "nil" : "\(delta!.count) chars")")
-        }
+
+        // Always push full content for live terminal view
+        let onContent = lock.withLock { contentHandler }
+        onContent?(sessionId, fullContent)
+
         guard let delta else { return }
 
-        // Update session status to active
+        // Update session status and lastOutput
         lock.withLock {
             if _sessions[sessionId]?.status == .connected {
                 _sessions[sessionId]?.status = .active
             }
             _sessions[sessionId]?.lastOutput = String(
-                delta.trimmingCharacters(in: .whitespacesAndNewlines).suffix(200)
+                fullContent.trimmingCharacters(in: .whitespacesAndNewlines).suffix(200)
             )
         }
 
-        // For large initial reads, emit a single message event instead of per-line parsing
-        // to avoid flooding the UI with hundreds of events
+        // Also emit event for relay to phone
         let handler = lock.withLock { eventHandler }
         if delta.count > 500 {
-            // Trim to last ~2000 chars of content for display
             let trimmed = String(delta.suffix(2000))
             handler?(sessionId, .message(text: trimmed))
         } else {
-            let events = parser.parseDelta(delta)
+            let parser = lock.withLock { parsers[sessionId] }
+            let events = parser?.parseDelta(delta) ?? []
             for event in events {
                 handler?(sessionId, event)
             }
