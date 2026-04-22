@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 2 · 配置 + 主题 + 字体 — ✅ 完成
+**当前阶段**: Phase 2 ✅ + Phase 1 瑕疵扫尾（选区增强 / 120fps telemetry / bold 字重 / 彩色 scrollback）完成，等 Phase 3 排期
 
 ---
 
@@ -79,6 +79,16 @@
   - `Render/MetalRenderer.swift` — 每 cell 双 pass：先 bg（solid slot + 颜色），再 fg/underline/strikethrough；reverse 交换 fg/bg，dim 乘 0.5 系数
   - `brew install --cask font-jetbrains-mono` 完成，字体链自动命中 JetBrainsMono-Regular（cell 17×37 @2x）
   - 验收：`printf "\e[31mRED \e[42;30mBG \e[7mREVERSE \e[4mUNDERLINE\e[0m"` 四种效果正确渲染
+
+---
+
+## Phase 1 瑕疵扫尾（2-5 项）✅
+
+- **双击选词 / 三击选行 / ⌥ 拖拽块选** — `Selection.Mode {linear, block}` + `columnRange(forDocRow:cols:)`；`TerminalView` 用 `GestureMode` 跟踪每次 mouseDown（clickCount 1/2/3 + Option flag）；`textInRange(_ selection:)` 按 mode 分支（block 保留列宽矩形）
+- **120fps + 帧时延 telemetry** — MTKView `preferredFramesPerSecond = 120`；`MetalRenderer` 每秒打 `fps avg/min/max | cpu avg/max headroomFps`；实测 CPU draw ~2.5-3.3 ms/帧，headroom ~300-400 fps（显示器上限兜底）
+- **Bold 真字重** — `GlyphAtlas` 带 `regularFont` + `boldFont` 两套字形，cache 按 `(Character, bold)` keyed；`MetalRenderer.loadMonoFont` 改走 `CTFontDescriptor` + `kCTFontSymbolicTrait = .boldTrait`（JetBrainsMono 的 bold PostScript 名其实是 "JetBrainsMono-Regular_Bold"，精确字符串匹配根本命中不了）
+- **Metal instance buffer 修正** — `setVertexBytes` 4 KB 上限在 hexdump 下一帧 >85 个 instance 时崩溃（AGX::RenderContext::setVertexProgramBufferBytes SIGABRT），换成 growable 的 shared `MTLBuffer`，步幅对齐 4 KB 只涨不降
+- **彩色 scrollback** — `TerminalScreen.scrollback` 从 `[String]` 改成 `[[Cell]]`；滚出屏幕的行保留 SGR 完整属性（fg/bg/bold/underline…）；`scrollUp` trim 尾部空白无 bg cell 免内存膨胀；`snapshot` 直接拼 `[Cell]` 行，不再 String↔Cell 来回转
 
 ---
 
