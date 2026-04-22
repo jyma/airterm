@@ -58,8 +58,8 @@ final class TerminalSession {
         screen.snapshot(topDocLine: topDocLine)
     }
 
-    func textInRange(from start: DocPoint, to end: DocPoint) -> String {
-        screen.textInRange(from: start, to: end)
+    func textInRange(_ selection: Selection) -> String {
+        screen.textInRange(selection)
     }
 
     func stop() {

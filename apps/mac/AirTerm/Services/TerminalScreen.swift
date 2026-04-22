@@ -181,42 +181,50 @@ final class TerminalScreen: @unchecked Sendable {
         )
     }
 
-    /// Extract text for a document-row range (inclusive). Trailing spaces on
-    /// each intermediate row are trimmed, matching typical copy-terminal behaviour.
-    func textInRange(from start: DocPoint, to end: DocPoint) -> String {
+    /// Extract text for a selection. Block selections take a column-bounded
+    /// rectangle (trailing spaces preserved per row); linear selections trim
+    /// trailing spaces on intermediate rows to match typical terminal copy.
+    func textInRange(_ selection: Selection) -> String {
         lock.lock()
         defer { lock.unlock() }
 
-        let (lo, hi) = start <= end ? (start, end) : (end, start)
+        let (lo, hi) = selection.normalized
         let g = useAltScreen ? altGrid : mainGrid
         let sb = useAltScreen ? [] : scrollback
 
         var out = ""
         for row in lo.docRow...hi.docRow {
-            let startCol = (row == lo.docRow) ? lo.col : 0
-            let endCol = (row == hi.docRow) ? hi.col : cols - 1
+            guard let range = selection.columnRange(forDocRow: row, cols: cols) else { continue }
+            let startCol = range.lowerBound
+            let endCol = range.upperBound
 
             var line = ""
             if row < sb.count {
                 let chars = Array(sb[row])
                 let s = max(0, min(startCol, chars.count))
                 let e = max(s, min(endCol + 1, chars.count))
-                line = String(chars[s..<e])
+                if s < e { line = String(chars[s..<e]) }
             } else {
                 let liveRow = row - sb.count
                 if liveRow >= 0 && liveRow < g.count {
                     let cells = g[liveRow]
                     let s = max(0, min(startCol, cells.count))
                     let e = max(s, min(endCol + 1, cells.count))
-                    line = String(cells[s..<e].map { $0.char })
+                    if s < e { line = String(cells[s..<e].map { $0.char }) }
                 }
             }
 
             if row != hi.docRow {
-                while line.last == " " { line.removeLast() }
+                if selection.mode == .linear {
+                    while line.last == " " { line.removeLast() }
+                }
                 out.append(line)
                 out.append("\n")
             } else {
+                if selection.mode == .linear {
+                    // Trailing spaces on the final linear row are kept if the
+                    // user deliberately dragged into them; no trim here.
+                }
                 out.append(line)
             }
         }

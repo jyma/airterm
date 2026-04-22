@@ -217,14 +217,13 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
         // Selection overlay.
         if let sel = selection {
-            let (lo, hi) = sel.normalized
             for row in 0..<snapshot.rows {
                 let docRow = snapshot.topDocLine + row
-                if docRow < lo.docRow || docRow > hi.docRow { continue }
-                let startCol = (docRow == lo.docRow) ? lo.col : 0
-                let endCol = (docRow == hi.docRow) ? hi.col : snapshot.cols - 1
+                guard let range = sel.columnRange(forDocRow: docRow, cols: snapshot.cols) else { continue }
+                let startCol = max(0, range.lowerBound)
+                let endCol = min(snapshot.cols - 1, range.upperBound)
                 guard startCol <= endCol else { continue }
-                for col in startCol...min(endCol, snapshot.cols - 1) where col >= 0 {
+                for col in startCol...endCol {
                     selections.append(InstanceData(
                         cellOriginPx: SIMD2<Float>(Float(col) * cellW, Float(row) * cellH),
                         atlasOrigin: solidOrigin,

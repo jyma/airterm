@@ -33,6 +33,14 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     // Selection state.
     private var selection: Selection?
     private var mouseAnchor: DocPoint?
+    private var gestureMode: GestureMode = .linear
+
+    private enum GestureMode {
+        case linear
+        case block
+        case wordClick     // snap double-click selection
+        case lineClick     // snap triple-click selection
+    }
 
     override init(frame frameRect: NSRect) {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -168,32 +176,97 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     override func mouseDown(with event: NSEvent) {
         guard let point = docPoint(from: event) else { return }
         mouseAnchor = point
-        selection = nil
-        renderer.selection = nil
+
+        switch event.clickCount {
+        case 2:
+            gestureMode = .wordClick
+            selection = wordSelection(at: point)
+        case 3:
+            gestureMode = .lineClick
+            selection = lineSelection(at: point)
+        default:
+            let optHeld = event.modifierFlags.contains(.option)
+            gestureMode = optHeld ? .block : .linear
+            selection = nil
+        }
+        renderer.selection = selection
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let anchor = mouseAnchor, let head = docPoint(from: event) else { return }
-        let sel = Selection(anchor: anchor, head: head)
-        selection = sel
-        renderer.selection = sel
+        switch gestureMode {
+        case .linear, .block:
+            guard let anchor = mouseAnchor, let head = docPoint(from: event) else { return }
+            let mode: Selection.Mode = (gestureMode == .block) ? .block : .linear
+            let sel = Selection(anchor: anchor, head: head, mode: mode)
+            selection = sel
+            renderer.selection = sel
+        case .wordClick, .lineClick:
+            break
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
         // If it was a plain click with no drag, drop the empty selection.
-        if let sel = selection, sel.anchor == sel.head {
+        if gestureMode == .linear || gestureMode == .block,
+           let sel = selection, sel.anchor == sel.head {
             selection = nil
             renderer.selection = nil
         }
         mouseAnchor = nil
     }
 
+    private func wordSelection(at point: DocPoint) -> Selection? {
+        let snap = renderer.latestSnapshot ?? session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
+        let vpRow = point.docRow - snap.topDocLine
+        guard vpRow >= 0, vpRow < snap.grid.count else {
+            return Selection(anchor: point, head: point)
+        }
+        let row = snap.grid[vpRow]
+        guard !row.isEmpty else { return Selection(anchor: point, head: point) }
+        let clampedCol = max(0, min(point.col, row.count - 1))
+        let ch = row[clampedCol].char
+        guard Self.isWordChar(ch) else {
+            let p = DocPoint(docRow: point.docRow, col: clampedCol)
+            return Selection(anchor: p, head: p)
+        }
+        var start = clampedCol
+        var end = clampedCol
+        while start > 0, Self.isWordChar(row[start - 1].char) { start -= 1 }
+        while end < row.count - 1, Self.isWordChar(row[end + 1].char) { end += 1 }
+        return Selection(
+            anchor: DocPoint(docRow: point.docRow, col: start),
+            head: DocPoint(docRow: point.docRow, col: end)
+        )
+    }
+
+    private func lineSelection(at point: DocPoint) -> Selection {
+        let snap = renderer.latestSnapshot ?? session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
+        let vpRow = point.docRow - snap.topDocLine
+        var lastCol = snap.cols - 1
+        if vpRow >= 0, vpRow < snap.grid.count {
+            let row = snap.grid[vpRow]
+            var i = row.count - 1
+            while i >= 0, row[i].char == " " { i -= 1 }
+            lastCol = max(0, i)
+        }
+        return Selection(
+            anchor: DocPoint(docRow: point.docRow, col: 0),
+            head: DocPoint(docRow: point.docRow, col: lastCol)
+        )
+    }
+
+    /// A "word" for double-click selection: identifier characters plus a few
+    /// tokens commonly useful in shell (paths, flags, URLs).
+    private static func isWordChar(_ ch: Character) -> Bool {
+        if ch.isLetter || ch.isNumber { return true }
+        return "_./-:@~".contains(ch)
+    }
+
     // MARK: - Copy / Paste
 
     @objc func copy(_ sender: Any?) {
         guard let sel = selection else { return }
-        let (start, end) = sel.normalized
-        let text = session.textInRange(from: start, to: end)
+        let text = session.textInRange(sel)
         guard !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

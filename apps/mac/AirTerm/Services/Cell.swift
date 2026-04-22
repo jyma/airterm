@@ -53,21 +53,35 @@ struct DocPoint: Equatable, Hashable {
 }
 
 /// A continuous selection spanning (anchor -> head). `anchor` is wherever the
-/// mouse started; `head` tracks the current position.
+/// mouse started; `head` tracks the current position. `mode` determines
+/// whether the span flows linearly with text or stays rectangular.
 struct Selection: Equatable {
+    enum Mode { case linear, block }
+
     var anchor: DocPoint
     var head: DocPoint
+    var mode: Mode = .linear
 
     var normalized: (start: DocPoint, end: DocPoint) {
         anchor <= head ? (anchor, head) : (head, anchor)
     }
 
-    func contains(docRow: Int, col: Int) -> Bool {
+    /// The column range inside a given doc row. Returns `nil` if the row is
+    /// outside the selection at all.
+    func columnRange(forDocRow docRow: Int, cols: Int) -> ClosedRange<Int>? {
         let (start, end) = normalized
-        if docRow < start.docRow || docRow > end.docRow { return false }
-        let startCol = (docRow == start.docRow) ? start.col : 0
-        let endCol = (docRow == end.docRow) ? end.col : Int.max
-        return col >= startCol && col <= endCol
+        guard docRow >= start.docRow, docRow <= end.docRow else { return nil }
+        switch mode {
+        case .linear:
+            let startCol = (docRow == start.docRow) ? start.col : 0
+            let endCol = (docRow == end.docRow) ? end.col : cols - 1
+            guard startCol <= endCol else { return nil }
+            return startCol...endCol
+        case .block:
+            let minCol = min(anchor.col, head.col)
+            let maxCol = max(anchor.col, head.col)
+            return minCol...maxCol
+        }
     }
 }
 
