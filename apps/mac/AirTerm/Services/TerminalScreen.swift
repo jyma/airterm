@@ -30,9 +30,10 @@ final class TerminalScreen: @unchecked Sendable {
     private var altCursorCol = 0
     private var useAltScreen = false
 
-    // Scrollback (only for main screen) — plain text for now; color scrollback
-    // is deferred to Step 4.
-    private var scrollback: [String] = []
+    // Scrollback (only for main screen). Each row carries its cells with full
+    // colour / attribute data; trailing whitespace is stripped to keep memory
+    // bounded on typical output.
+    private var scrollback: [[Cell]] = []
     private let maxScrollback = 10000
 
     // Scroll region
@@ -148,14 +149,14 @@ final class TerminalScreen: @unchecked Sendable {
         for r in 0..<rows {
             let docRow = topLine + r
             if docRow < sb.count {
-                var row = Array(repeating: Cell.empty, count: cols)
-                var c = 0
-                for ch in sb[docRow] {
-                    if c >= cols { break }
-                    row[c] = Cell(char: ch, attrs: .default)
-                    c += 1
+                let stored = sb[docRow]
+                if stored.count >= cols {
+                    viewport.append(Array(stored.prefix(cols)))
+                } else {
+                    var row = stored
+                    row.append(contentsOf: repeatElement(Cell.empty, count: cols - stored.count))
+                    viewport.append(row)
                 }
-                viewport.append(row)
             } else {
                 let liveRow = docRow - sb.count
                 if liveRow >= 0 && liveRow < g.count {
@@ -200,10 +201,10 @@ final class TerminalScreen: @unchecked Sendable {
 
             var line = ""
             if row < sb.count {
-                let chars = Array(sb[row])
-                let s = max(0, min(startCol, chars.count))
-                let e = max(s, min(endCol + 1, chars.count))
-                if s < e { line = String(chars[s..<e]) }
+                let cells = sb[row]
+                let s = max(0, min(startCol, cells.count))
+                let e = max(s, min(endCol + 1, cells.count))
+                if s < e { line = String(cells[s..<e].map { $0.char }) }
             } else {
                 let liveRow = row - sb.count
                 if liveRow >= 0 && liveRow < g.count {
@@ -499,13 +500,13 @@ final class TerminalScreen: @unchecked Sendable {
 
     private func scrollUp() {
         if !useAltScreen {
-            let topRow = mainGrid[scrollTop]
-            let raw = String(topRow.map(\.char))
-            var end = raw.endIndex
-            while end > raw.startIndex && raw[raw.index(before: end)] == " " {
-                end = raw.index(before: end)
+            var row = mainGrid[scrollTop]
+            // Strip trailing cells that are both blank and have no background,
+            // so long runs of whitespace don't bloat scrollback memory.
+            while let last = row.last, last.char == " ", last.attrs.bg == nil {
+                row.removeLast()
             }
-            scrollback.append(String(raw[raw.startIndex..<end]))
+            scrollback.append(row)
             if scrollback.count > maxScrollback { scrollback.removeFirst() }
         }
         for r in scrollTop..<scrollBottom {
