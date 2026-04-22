@@ -52,6 +52,15 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var lastReportedCols: Int = 0
     private(set) var latestSnapshot: TerminalSnapshot?
 
+    // Frame-timing stats printed every ~1s of real time.
+    private var lastFrameTime: CFTimeInterval = 0
+    private var frameCount: Int = 0
+    private var frameAccumulator: CFTimeInterval = 0
+    private var frameMinDT: CFTimeInterval = .infinity
+    private var frameMaxDT: CFTimeInterval = 0
+    private var cpuTimeAccumulator: CFTimeInterval = 0
+    private var cpuTimeMax: CFTimeInterval = 0
+
     init(device: MTLDevice) {
         self.device = device
         guard let queue = device.makeCommandQueue() else {
@@ -78,12 +87,19 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        let cpuStart = CACurrentMediaTime()
+        recordFrameTiming()
         guard
             let drawable = view.currentDrawable,
             let descriptor = view.currentRenderPassDescriptor,
             let commandBuffer = commandQueue.makeCommandBuffer(),
             let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor)
         else { return }
+        defer {
+            let cpuTime = CACurrentMediaTime() - cpuStart
+            cpuTimeAccumulator += cpuTime
+            cpuTimeMax = max(cpuTimeMax, cpuTime)
+        }
 
         let atlas = self.atlas ?? makeAtlas(view: view)
         self.atlas = atlas
@@ -119,6 +135,33 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    private func recordFrameTiming() {
+        let now = CACurrentMediaTime()
+        defer { lastFrameTime = now }
+        guard lastFrameTime > 0 else { return }
+        let dt = now - lastFrameTime
+        frameAccumulator += dt
+        frameCount += 1
+        frameMinDT = min(frameMinDT, dt)
+        frameMaxDT = max(frameMaxDT, dt)
+        if frameAccumulator >= 1.0 {
+            let fps = Double(frameCount) / frameAccumulator
+            let minFps = frameMaxDT > 0 ? 1.0 / frameMaxDT : 0
+            let maxFps = frameMinDT > 0 ? 1.0 / frameMinDT : 0
+            let cpuAvgMs = (cpuTimeAccumulator / Double(frameCount)) * 1000
+            let cpuMaxMs = cpuTimeMax * 1000
+            let headroomFps = cpuAvgMs > 0 ? 1000.0 / cpuAvgMs : 0
+            DebugLog.log(String(format: "fps avg=%.1f min=%.1f max=%.1f | cpu avg=%.2fms max=%.2fms headroomFps=%.0f frames=%d",
+                                 fps, minFps, maxFps, cpuAvgMs, cpuMaxMs, headroomFps, frameCount))
+            frameCount = 0
+            frameAccumulator = 0
+            frameMinDT = .infinity
+            frameMaxDT = 0
+            cpuTimeAccumulator = 0
+            cpuTimeMax = 0
+        }
     }
 
     private func reportGridSize(drawableSize: CGSize) {

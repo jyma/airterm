@@ -59,7 +59,8 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
         metalView.autoresizingMask = [.width, .height]
         metalView.colorPixelFormat = .bgra8Unorm
-        metalView.preferredFramesPerSecond = 60
+        // Request 120Hz; on non-ProMotion displays the system just clamps to 60.
+        metalView.preferredFramesPerSecond = 120
         metalView.isPaused = false
         metalView.enableSetNeedsDisplay = false
         metalView.delegate = renderer
