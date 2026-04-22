@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 80%）
+**当前阶段**: Phase 1 · Mac 终端引擎 MVP — 7/7 步完成，等 Phase 2 决策
 
 ---
 
@@ -42,6 +42,13 @@
   - `UI/TerminalView.swift` — first responder（`acceptsFirstResponder` + `viewDidMoveToWindow`→`makeFirstResponder`）；`keyDown` 映射：Ctrl+字母→control byte、Option+→ ESC 前缀、Return/Tab/Delete/Esc/箭头/PgUp/PgDn/Home/End 转义序列，其余走 `event.characters`
   - 验收：App 起来进 `$SHELL`，`echo AIRTERM_WORKS`、`ls /` 能跑；光标下划线位置正确；窗口 resize 走 `TIOCSWINSZ` + SIGWINCH
 
+- ✅ **[Step 7] Tab 系统（⌘T / ⌘1-9）**
+  - `UI/TerminalWindow.swift` — 每个 tab = 独立 NSWindow；`tabbingMode = .preferred` + `tabbingIdentifier = "airterm.tab-group"` 让 macOS 自动合成 tab 栏
+  - `UI/TerminalWindow.swift` — `override newWindowForTab(_:)` 新建 TerminalWindow 并 `addTabbedWindow(_:ordered:)`（tab 栏 "+" 按钮和菜单一起受益）
+  - `UI/TerminalWindow.swift` — `selectTabByTag(_:)` 从 `sender.tag` 读索引，走 `tabGroup.windows[i].makeKeyAndOrderFront`
+  - `App/AppDelegate.swift` — File → New Tab 接 `newWindowForTab:`（⌘T）；View 菜单循环加 9 个 Select Tab N（⌘1–⌘9）共用 `selectTabByTag(_:)` + `tag = i-1`
+  - 验收：⌘T 连续开三个 tab，tab 栏显示三个 AirTerm；⌘1/⌘3 能跳到对应 tab 并在该 tab 的活动 pane 继续输入；⌘W 依然 close pane → close tab → close window 级联
+
 - ✅ **[Step 6] Focus 切换快捷键 + 活动 pane 视觉提示**
   - `UI/TerminalView.swift` — MTKView 缩进 2px；TerminalView 自己的 layer 做 2px border，`isActive` 在 active ↔ inactive 间切 `Palette.accent` / `Palette.background`（inactive 时融进窗口背景看不见）；鼠标 `docPoint` 坐标换算减掉 border inset
   - `UI/TerminalWindow.swift` — `activeTerminalView` didSet 自动翻转新旧 pane 的 `isActive`；`cycleFocus(forward:)` 按 `rootPane.leaves` 顺序前后循环；`moveFocus(_:)` 用窗口坐标几何距离找指定方向的最近邻（`directionalDistance` 主轴距离 + 跨轴偏移 0.5 权重）
@@ -75,18 +82,17 @@
 
 ---
 
-## 下一步：Phase 1 Step 7 · Tab 系统（⌘T、⌘1-9）
+## Phase 1 已完整落地 🎉
 
-**目标**：一个 window 能开多个 tab，每个 tab 是独立的 PaneTree。
+MVP Mac 终端引擎 7/7 步全部达成，可以单独把它当成一个日常能用的原生 macOS 终端。下一步应该进入 **Phase 2**——见 `docs/ROADMAP.md`。常规后续方向：
 
-**需要实现**：
-- `Tab` 类型（或者复用 macOS `NSWindow tabbing`）：`tab` = `{rootPane, activeLeaf, title}`
-- 方案 A：利用 `NSWindow.tabbingMode = .preferred`，每个 tab 是一个窗口（macOS 自动合并成 tab 栏）。优点是原生、⌘⇧[/⌘⇧] 切 tab 免费；缺点是每个"tab"都是完整 window，资源略重
-- 方案 B：自己画 tab 栏 + 切换 PaneContainerView
-- 建议：先走方案 A，用 `NSWindow.tabbingMode + NSWindowController`，⌘T 用 `newWindowForTab:`；⌘1-9 自己接
-- `TerminalWindow` 加 `@objc func selectTab<n>(_:)` 给 ⌘1-9
+- **Phase 2 候选主题**：TOML 配置热重载（字体 / 主题 / shell）、Tmux 原生风格操作、Shell 集成（OSC 7、cwd 跟随、command 输出 folding）、更完整的 selection（双击选词、三击选行、块选）、超高吞吐优化与 benchmark（/dev/urandom + hexdump 120fps 目标）
 
-**验收**：⌘T 开新 tab，各 tab 互相独立；⌘1-9 跳指定 tab；⌘W 关当前 pane，活动 pane 是 root leaf 则关 tab（不关窗）。
+**剩余小瑕疵（不阻塞 Phase 2）**：
+- 用户 `~/.bash_profile` 启动期输出的 `bash: Savings: command not found` 来自用户 shell 配置，非 AirTerm 缺陷
+- bold / italic 字重还没用不同字体子集，只靠颜色变化传达
+- 滚动回溯行暂存为纯文本，失去原始颜色
+- `swift test` CLI 触发 XCTest 仍报模块找不到，目前靠 Xcode 跑
 
 ---
 
@@ -100,7 +106,7 @@
 | 4 | 滚动回溯、选区、复制粘贴 | ✅ 完成 |
 | 5 | Pane 树数据模型 + NSSplitView 递归 | ✅ 完成（含 ⌘D/⌘⇧D 分屏） |
 | 6 | Focus 切换快捷键 + 活动 pane 视觉提示 | ✅ 完成 |
-| 7 | Tab 系统（⌘T、⌘1-9） | ⬜ **下一个** |
+| 7 | Tab 系统（⌘T、⌘1-9） | ✅ 完成 |
 
 **Phase 1 验收**：`vim README.md` 正常；`cat /dev/urandom \| head -c 10M \| hexdump` 帧率稳定 120fps；竖切屏幕同时运行多个 shell。
 

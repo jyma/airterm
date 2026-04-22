@@ -25,6 +25,8 @@ final class TerminalWindow: NSWindow {
         isMovableByWindowBackground = false
         minSize = NSSize(width: 480, height: 320)
         backgroundColor = Palette.background
+        tabbingMode = .preferred
+        tabbingIdentifier = "airterm.tab-group"
 
         guard let content = contentView else { return }
 
@@ -65,6 +67,23 @@ final class TerminalWindow: NSWindow {
 
     @objc func focusNextPane(_ sender: Any?) { cycleFocus(forward: true) }
     @objc func focusPreviousPane(_ sender: Any?) { cycleFocus(forward: false) }
+
+    // MARK: - Tabs
+
+    override func newWindowForTab(_ sender: Any?) {
+        let new = TerminalWindow()
+        addTabbedWindow(new, ordered: .above)
+        new.makeKeyAndOrderFront(nil)
+    }
+
+    @objc func selectTabByTag(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+              let group = tabGroup,
+              item.tag >= 0,
+              item.tag < group.windows.count
+        else { return }
+        group.windows[item.tag].makeKeyAndOrderFront(nil)
+    }
     @objc func focusPaneLeft(_ sender: Any?) { moveFocus(.left) }
     @objc func focusPaneRight(_ sender: Any?) { moveFocus(.right) }
     @objc func focusPaneUp(_ sender: Any?) { moveFocus(.up) }

@@ -40,7 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fileMenuItem = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(withTitle: "New Window", action: nil, keyEquivalent: "n")
-        fileMenu.addItem(withTitle: "New Tab", action: nil, keyEquivalent: "t")
+
+        let newTab = fileMenu.addItem(
+            withTitle: "New Tab",
+            action: #selector(NSWindow.newWindowForTab(_:)),
+            keyEquivalent: "t"
+        )
+        newTab.keyEquivalentModifierMask = [.command]
+
         fileMenu.addItem(NSMenuItem.separator())
 
         let splitV = fileMenu.addItem(
@@ -125,6 +132,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: downKey
         )
         down.keyEquivalentModifierMask = arrowMods
+
+        viewMenu.addItem(NSMenuItem.separator())
+
+        for i in 1...9 {
+            let item = viewMenu.addItem(
+                withTitle: "Select Tab \(i)",
+                action: #selector(TerminalWindow.selectTabByTag(_:)),
+                keyEquivalent: "\(i)"
+            )
+            item.keyEquivalentModifierMask = [.command]
+            item.tag = i - 1
+        }
 
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)
