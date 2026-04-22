@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 45%）
+**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 65%）
 
 ---
 
@@ -42,6 +42,14 @@
   - `UI/TerminalView.swift` — first responder（`acceptsFirstResponder` + `viewDidMoveToWindow`→`makeFirstResponder`）；`keyDown` 映射：Ctrl+字母→control byte、Option+→ ESC 前缀、Return/Tab/Delete/Esc/箭头/PgUp/PgDn/Home/End 转义序列，其余走 `event.characters`
   - 验收：App 起来进 `$SHELL`，`echo AIRTERM_WORKS`、`ls /` 能跑；光标下划线位置正确；窗口 resize 走 `TIOCSWINSZ` + SIGWINCH
 
+- ✅ **[Step 5] Pane 树 + NSSplitView 递归**
+  - `UI/Pane.swift`（新）— 引用类型树节点；`leaf(TerminalView)` 或 `split(orientation, children)`；`leaves` 深度遍历；`parent` 弱引用防环
+  - `UI/PaneContainerView.swift`（新）— 从 `Pane` 根递归 build NSSplitView；rebuild 后 `layoutSubtreeIfNeeded` + `distributeEvenly` 把 divider 按子数均分
+  - `UI/TerminalWindow.swift` — 持有 `rootPane` + `activeTerminalView`；`splitPaneVertically:` / `splitPaneHorizontally:` / `closeActivePane:` 菜单响应器；split 时若父节点同方向则追加，否则在父节点里把活动 leaf 换成新 split；close 时父节点只剩 1 娃就塌陷；根 leaf 关了就关窗
+  - `UI/TerminalView.swift` — `onActivated` 闭包在 `becomeFirstResponder` 里回调，取代旧的 `viewDidMoveToWindow` 自动抓焦（多 pane 里不再抢焦）
+  - `App/AppDelegate.swift` — File 菜单加 Split Vertically（⌘D）/ Split Horizontally（⌘⇧D）/ Close Pane（⌘W，root 落下就关窗）
+  - 验收：⌘D 并排切，⌘⇧D 堆叠切，各 pane 独立 shell（PTY 实际跑在 `TIOCSWINSZ` 给它的尺寸上，如 70×43）；输入只进活动 pane；⌘W 关 pane，父节点塌陷合并
+
 - ✅ **[Step 4] 滚动回溯 + 鼠标选区 + 复制粘贴**
   - `Services/Cell.swift` — 新增 `DocPoint{docRow, col}` + `Selection{anchor, head}`，`normalized` 规范化起止点
   - `Services/TerminalScreen.swift` — `snapshot(topDocLine:)` 把 scrollback + live grid 拼成固定大小的视口（`topDocLine=nil` 即 tail 跟随）；新增 `textInRange(from:to:)` 返回选区文本（行末空格自动去除）；TerminalSnapshot 加 `topDocLine/scrollbackCount/atTail`
@@ -59,17 +67,16 @@
 
 ---
 
-## 下一步：Phase 1 Step 5 · Pane 树 + NSSplitView 递归
+## 下一步：Phase 1 Step 6 · 焦点快捷键 + 活动 pane 视觉提示
 
-**目标**：一个窗口里能横向/纵向切多个 Pane，每个 Pane 有自己独立的 `TerminalSession`。
+**目标**：键盘快速切换活动 pane，活动 pane 有可见的高亮边/指示。
 
 **需要实现**：
-- `PaneNode` 值类型：enum `{leaf(TerminalSession) | horizontal([PaneNode]) | vertical([PaneNode])}`，保留树结构
-- `PaneTreeView`：NSSplitView 嵌套，从 PaneNode 递归构建；每个 leaf 套一个 `TerminalView`
-- focus 管理：窗口追踪 `activePane`，键盘 / 滚动事件只走 active pane
-- Step 6 配合：⌘D 横切 active pane、⌘⇧D 纵切、⌘[/⌘] 切换 focus（现在先把数据结构 + 渲染跑通）
+- ⌘[/⌘] 或 ⌥⌘Arrow 在 pane 之间切焦点（几何最近的邻居；按 leaves 的 frame 做命中）
+- 活动 pane 有 1–2px 边框或微妙色差（最简：给 MTKView 设 1px borderLayer，inactive 时清掉）
+- `TerminalWindow` 新增 `focusNeighbor(direction:)` 方法，实现 Pane tree + 屏幕坐标结合的邻居查找
 
-**验收**：命令菜单里手动触发 split，窗口出现分屏，每个 pane 各跑一个 shell，可以分别输入。
+**验收**：多 pane 下快捷键能切焦点；看得出哪个 pane 是活动的；关 pane 后焦点自动落到留存的某一个。
 
 ---
 
@@ -81,8 +88,8 @@
 | 2 | Metal 文本渲染 + 字形图集 | ✅ 完成 |
 | 3 | PTY → VTParser → TerminalScreen → Renderer 串联 + 键盘输入 | ✅ 完成 |
 | 4 | 滚动回溯、选区、复制粘贴 | ✅ 完成 |
-| 5 | Pane 树数据模型 + NSSplitView 递归 | ⬜ **下一个** |
-| 6 | Split / focus 快捷键（⌘D、⌘⇧D、⌘[、⌘]） | ⬜ |
+| 5 | Pane 树数据模型 + NSSplitView 递归 | ✅ 完成（含 ⌘D/⌘⇧D 分屏） |
+| 6 | Focus 切换快捷键 + 活动 pane 视觉提示 | ⬜ **下一个** |
 | 7 | Tab 系统（⌘T、⌘1-9） | ⬜ |
 
 **Phase 1 验收**：`vim README.md` 正常；`cat /dev/urandom \| head -c 10M \| hexdump` 帧率稳定 120fps；竖切屏幕同时运行多个 shell。

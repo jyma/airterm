@@ -42,9 +42,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: "New Window", action: nil, keyEquivalent: "n")
         fileMenu.addItem(withTitle: "New Tab", action: nil, keyEquivalent: "t")
         fileMenu.addItem(NSMenuItem.separator())
+
+        let splitV = fileMenu.addItem(
+            withTitle: "Split Vertically",
+            action: #selector(TerminalWindow.splitPaneVertically(_:)),
+            keyEquivalent: "d"
+        )
+        splitV.keyEquivalentModifierMask = [.command]
+
+        let splitH = fileMenu.addItem(
+            withTitle: "Split Horizontally",
+            action: #selector(TerminalWindow.splitPaneHorizontally(_:)),
+            keyEquivalent: "d"
+        )
+        splitH.keyEquivalentModifierMask = [.command, .shift]
+
+        fileMenu.addItem(NSMenuItem.separator())
         fileMenu.addItem(
-            withTitle: "Close",
-            action: #selector(NSWindow.performClose(_:)),
+            withTitle: "Close Pane",
+            action: #selector(TerminalWindow.closeActivePane(_:)),
             keyEquivalent: "w"
         )
         fileMenuItem.submenu = fileMenu

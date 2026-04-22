@@ -11,6 +11,10 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     private let renderer: MetalRenderer
     let session: TerminalSession
 
+    /// Fires when this view becomes first responder. Used by the window to
+    /// track which pane is currently receiving split / close commands.
+    var onActivated: (() -> Void)?
+
     // Scroll state: when `followTail` is true the renderer draws the live tail;
     // otherwise `savedTopDocLine` anchors the viewport to a fixed doc row.
     private var followTail = true
@@ -50,9 +54,10 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        window?.makeFirstResponder(self)
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok { onActivated?() }
+        return ok
     }
 
     // MARK: - MetalRendererDelegate
