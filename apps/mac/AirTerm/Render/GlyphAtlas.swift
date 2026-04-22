@@ -12,18 +12,25 @@ struct GlyphEntry {
 /// grid of cells in an `.r8Unorm` texture. Coverage is sampled in the fragment shader.
 final class GlyphAtlas {
     let texture: MTLTexture
-    let font: CTFont
+    let regularFont: CTFont
+    let boldFont: CTFont
     let layout: GridLayout
     let solid: GlyphEntry
+
+    private struct Key: Hashable {
+        let char: Character
+        let bold: Bool
+    }
 
     private let atlasPixelSize: Int
     private let colsPerRow: Int
     private let rowsPerAtlas: Int
-    private var cache: [Character: GlyphEntry] = [:]
+    private var cache: [Key: GlyphEntry] = [:]
     private var nextSlot: Int = 0
 
-    init(device: MTLDevice, font: CTFont, layout: GridLayout, atlasPixelSize: Int = 2048) {
-        self.font = font
+    init(device: MTLDevice, regularFont: CTFont, boldFont: CTFont, layout: GridLayout, atlasPixelSize: Int = 2048) {
+        self.regularFont = regularFont
+        self.boldFont = boldFont
         self.layout = layout
         self.atlasPixelSize = atlasPixelSize
         self.colsPerRow = max(1, atlasPixelSize / Int(layout.cellWidth))
@@ -66,14 +73,16 @@ final class GlyphAtlas {
         self.nextSlot = 1
     }
 
-    func entry(for char: Character) -> GlyphEntry {
-        if let cached = cache[char] { return cached }
-        let entry = rasterize(char)
-        cache[char] = entry
+    func entry(for char: Character, bold: Bool = false) -> GlyphEntry {
+        let key = Key(char: char, bold: bold)
+        if let cached = cache[key] { return cached }
+        let font = bold ? boldFont : regularFont
+        let entry = rasterize(char, font: font)
+        cache[key] = entry
         return entry
     }
 
-    private func rasterize(_ char: Character) -> GlyphEntry {
+    private func rasterize(_ char: Character, font: CTFont) -> GlyphEntry {
         let cellW = Int(layout.cellWidth)
         let cellH = Int(layout.cellHeight)
         let slot = nextSlot

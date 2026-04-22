@@ -61,6 +61,25 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var cpuTimeAccumulator: CFTimeInterval = 0
     private var cpuTimeMax: CFTimeInterval = 0
 
+    private var instanceBufferCache: MTLBuffer?
+
+    /// Returns a shared-storage buffer of at least `minimumLength` bytes,
+    /// growing (but never shrinking) across frames so steady-state allocation
+    /// stops after the first few big frames.
+    private func instanceBuffer(minimumLength: Int) -> MTLBuffer {
+        if let existing = instanceBufferCache, existing.length >= minimumLength {
+            return existing
+        }
+        // Round up to avoid reallocating for tiny size bumps.
+        let rounded = max(minimumLength, 4096)
+        let capacity = (rounded + 4095) & ~4095
+        guard let buf = device.makeBuffer(length: capacity, options: [.storageModeShared]) else {
+            fatalError("Failed to allocate instance buffer of length \(capacity)")
+        }
+        instanceBufferCache = buf
+        return buf
+    }
+
     init(device: MTLDevice) {
         self.device = device
         guard let queue = device.makeCommandQueue() else {
@@ -113,23 +132,22 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
         let instances = buildInstances(atlas: atlas)
         if !instances.isEmpty {
+            let byteCount = instances.count * MemoryLayout<InstanceData>.stride
+            let buffer = instanceBuffer(minimumLength: byteCount)
             instances.withUnsafeBufferPointer { buf in
-                encoder.setRenderPipelineState(pipelineState)
-                encoder.setVertexBytes(
-                    buf.baseAddress!,
-                    length: buf.count * MemoryLayout<InstanceData>.stride,
-                    index: 0
-                )
-                encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
-                encoder.setFragmentTexture(atlas.texture, index: 0)
-                encoder.setFragmentSamplerState(samplerState, index: 0)
-                encoder.drawPrimitives(
-                    type: .triangleStrip,
-                    vertexStart: 0,
-                    vertexCount: 4,
-                    instanceCount: instances.count
-                )
+                memcpy(buffer.contents(), buf.baseAddress!, byteCount)
             }
+            encoder.setRenderPipelineState(pipelineState)
+            encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+            encoder.setFragmentTexture(atlas.texture, index: 0)
+            encoder.setFragmentSamplerState(samplerState, index: 0)
+            encoder.drawPrimitives(
+                type: .triangleStrip,
+                vertexStart: 0,
+                vertexCount: 4,
+                instanceCount: instances.count
+            )
         }
 
         encoder.endEncoding()
@@ -226,7 +244,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                 }
 
                 if cell.char != " " {
-                    let entry = atlas.entry(for: cell.char)
+                    let entry = atlas.entry(for: cell.char, bold: attrs.bold)
                     foregrounds.append(InstanceData(
                         cellOriginPx: origin,
                         atlasOrigin: entry.atlasOrigin,
@@ -323,22 +341,31 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private func makeAtlas(view: MTKView) -> GlyphAtlas {
         let scale = view.window?.backingScaleFactor ?? scaleFactor
         scaleFactor = scale
-        let font = Self.loadMonoFont(family: fontFamily, pixelSize: pointSize * scale)
-        let layout = GridLayout.make(font: font)
-        DebugLog.log("GlyphAtlas init: font=\(CTFontCopyPostScriptName(font) as String) cellW=\(layout.cellWidth) cellH=\(layout.cellHeight) scale=\(scale)")
-        return GlyphAtlas(device: device, font: font, layout: layout)
+        let regular = Self.loadMonoFont(family: fontFamily, pixelSize: pointSize * scale, weight: .regular)
+        let bold = Self.loadMonoFont(family: fontFamily, pixelSize: pointSize * scale, weight: .bold)
+        let layout = GridLayout.make(font: regular)
+        DebugLog.log("GlyphAtlas init: regular=\(CTFontCopyPostScriptName(regular) as String) bold=\(CTFontCopyPostScriptName(bold) as String) cellW=\(layout.cellWidth) cellH=\(layout.cellHeight) scale=\(scale)")
+        return GlyphAtlas(device: device, regularFont: regular, boldFont: bold, layout: layout)
     }
 
-    private static func loadMonoFont(family: String, pixelSize: CGFloat) -> CTFont {
-        let candidates = [family, "JetBrainsMono-Regular", "SFMono-Regular", "Menlo-Regular"]
-        for name in candidates {
-            let font = CTFontCreateWithName(name as CFString, pixelSize, nil)
-            let psName = CTFontCopyPostScriptName(font) as String
-            if psName == name {
-                return font
-            }
-        }
-        return CTFontCreateWithName("Menlo-Regular" as CFString, pixelSize, nil)
+    enum Weight { case regular, bold }
+
+    /// Resolve user input (PostScript name like "JetBrainsMono-Regular" or a
+    /// display family name like "JetBrains Mono") + a weight into a CTFont.
+    /// Uses trait-based descriptor matching so bold always picks the right
+    /// variant, even when its PostScript name doesn't fit a `-Bold` pattern.
+    private static func loadMonoFont(family: String, pixelSize: CGFloat, weight: Weight) -> CTFont {
+        let probe = CTFontCreateWithName(family as CFString, pixelSize, nil)
+        let displayFamily = CTFontCopyFamilyName(probe) as String
+
+        let traits: CTFontSymbolicTraits = weight == .bold ? .boldTrait : []
+        let traitsDict: [CFString: Any] = [kCTFontSymbolicTrait: traits.rawValue]
+        let attrs: [CFString: Any] = [
+            kCTFontFamilyNameAttribute: displayFamily,
+            kCTFontTraitsAttribute: traitsDict,
+        ]
+        let descriptor = CTFontDescriptorCreateWithAttributes(attrs as CFDictionary)
+        return CTFontCreateWithFontDescriptor(descriptor, pixelSize, nil)
     }
 
     private static func makePipelineState(device: MTLDevice) -> MTLRenderPipelineState {
