@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP — 7/7 步完成，等 Phase 2 决策
+**当前阶段**: Phase 2 · 配置 + 主题 + 字体 — ✅ 完成
 
 ---
 
@@ -79,6 +79,21 @@
   - `Render/MetalRenderer.swift` — 每 cell 双 pass：先 bg（solid slot + 颜色），再 fg/underline/strikethrough；reverse 交换 fg/bg，dim 乘 0.5 系数
   - `brew install --cask font-jetbrains-mono` 完成，字体链自动命中 JetBrainsMono-Regular（cell 17×37 @2x）
   - 验收：`printf "\e[31mRED \e[42;30mBG \e[7mREVERSE \e[4mUNDERLINE\e[0m"` 四种效果正确渲染
+
+---
+
+## Phase 2 落地 ✅
+
+- `Config/TOML.swift` — 手写 TOML 子集解析器（section headers、dotted keys、quoted string、int、double、bool、行内注释、字符串转义），~100 行；解析失败抛 `ParseError`，不炸 App
+- `Config/Theme.swift` — `Theme` 结构体（bg/fg/cursor/selection/accent + 8 标准 + 8 亮 ANSI）；4 套内置：Catppuccin Mocha / Tokyo Night / Dracula / Solarized Dark
+- `Config/Config.swift` — `Config` 结构（`font.family`、`font.size`、`theme.name`、`cursor.style`、`window.padding`、`window.opacity`），每项有 fallback；`seedIfMissing` 在 `~/.config/airterm/config.toml` 首次启动时写样板
+- `Config/ConfigStore.swift` — 单例加载 / 订阅机制；`startWatching` 用 `DispatchSource.makeFileSystemObjectSource` 监听文件，编辑器"原子替换"后自动 re-install watcher；改动推给所有观察者
+- `Services/Cell.swift` — `AnsiPalette` 改成 theme-aware（`AnsiPalette.theme` 静态属性），`CellAttributes.default*` 跟着 theme 动
+- `Render/MetalRenderer.swift` — `fontFamily/pointSize/cursorStyle/theme` 变配置属性；font/size 改了自动把 `atlas = nil` 重建；cursor 渲染按 `CursorStyle` 分三种（`.underline` 底边 2px / `.bar` 左侧 2px 宽 / `.block` 整格半透明）；selection/cursor 颜色走 theme
+- `UI/TerminalView.swift` — init 从 `ConfigStore.shared` 拉当前值，`subscribe` 绑观察者；`padding` 改了同步更新 `layer.borderWidth` 和 MTKView inset；border 颜色 active=theme.accent，inactive=theme.background（隐形）
+- `UI/TerminalWindow.swift` — 窗口 `backgroundColor` 跟 `theme.background`；`alphaValue` 跟 `window.opacity`；`Palette` enum 移除（色值都在 Theme 里）
+- `App/AppDelegate.swift` — `applicationDidFinishLaunching` 优先 `ConfigStore.shared` 和 `startWatching()`，保证第一帧就按配置画
+- 验收：改 `~/.config/airterm/config.toml` 切 theme / 字号 / 光标样式 / padding / opacity 都立即生效，不重启；破格 TOML 打 log 后回落默认；四套 theme 肉眼区分
 
 ---
 

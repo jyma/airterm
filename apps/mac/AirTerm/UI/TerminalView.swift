@@ -17,10 +17,12 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
     /// Drawn as the pane border; toggled by the window on focus changes.
     var isActive: Bool = false {
-        didSet { layer?.borderColor = (isActive ? Palette.accent : Palette.background).cgColor }
+        didSet { updateBorderColor() }
     }
 
-    private static let borderInset: CGFloat = 2
+    private var borderInset: CGFloat = CGFloat(Config.default.window.padding)
+    private var currentTheme: Theme = .catppuccinMocha
+    private var configToken: UUID?
 
     // Scroll state: when `followTail` is true the renderer draws the live tail;
     // otherwise `savedTopDocLine` anchors the viewport to a fixed doc row.
@@ -36,7 +38,8 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         guard let device = MTLCreateSystemDefaultDevice() else {
             fatalError("Metal is not supported on this device.")
         }
-        let inset = Self.borderInset
+        let inset = CGFloat(ConfigStore.shared.config.window.padding)
+        self.borderInset = inset
         let metalFrame = frameRect.insetBy(dx: inset, dy: inset)
         self.metalView = MTKView(frame: metalFrame, device: device)
         self.renderer = MetalRenderer(device: device)
@@ -45,10 +48,8 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
         wantsLayer = true
         layer?.borderWidth = inset
-        layer?.borderColor = Palette.background.cgColor
 
         metalView.autoresizingMask = [.width, .height]
-        metalView.clearColor = MTLClearColor(red: 0.118, green: 0.118, blue: 0.180, alpha: 1.0)
         metalView.colorPixelFormat = .bgra8Unorm
         metalView.preferredFramesPerSecond = 60
         metalView.isPaused = false
@@ -58,6 +59,41 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
         renderer.session = session
         renderer.delegate = self
+
+        configToken = ConfigStore.shared.subscribe { [weak self] config, theme in
+            self?.apply(config: config, theme: theme)
+        }
+    }
+
+    deinit {
+        if let token = configToken {
+            ConfigStore.shared.unsubscribe(token)
+        }
+    }
+
+    private func apply(config: Config, theme: Theme) {
+        currentTheme = theme
+        let bg = theme.background
+        metalView.clearColor = MTLClearColor(red: Double(bg.x), green: Double(bg.y), blue: Double(bg.z), alpha: 1)
+        renderer.theme = theme
+        renderer.fontFamily = config.font.family
+        renderer.pointSize = CGFloat(config.font.size)
+        renderer.cursorStyle = config.cursor.style
+
+        let newInset = CGFloat(config.window.padding)
+        if newInset != borderInset {
+            borderInset = newInset
+            layer?.borderWidth = newInset
+            metalView.frame = bounds.insetBy(dx: newInset, dy: newInset)
+        }
+
+        updateBorderColor()
+    }
+
+    private func updateBorderColor() {
+        let inactiveColor = SIMD4<Float>(currentTheme.background.x, currentTheme.background.y, currentTheme.background.z, 1)
+        let color = isActive ? currentTheme.accent : inactiveColor
+        layer?.borderColor = CGColor(srgbRed: CGFloat(color.x), green: CGFloat(color.y), blue: CGFloat(color.z), alpha: CGFloat(color.w))
     }
 
     required init?(coder: NSCoder) {
@@ -120,7 +156,7 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         let snap = renderer.latestSnapshot ?? session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
         // self is flipped, so (0,0) is the top-left of the pane. Subtract the
         // border inset to line up with the MTKView's drawing origin.
-        let inset = Self.borderInset
+        let inset = borderInset
         let location = convert(event.locationInWindow, from: nil)
         let cellPtW = cellSize.width / scale
         let cellPtH = cellSize.height / scale

@@ -4,6 +4,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Load + seed config before any window is built so the first frame
+        // already honours the user's theme / font / padding choices.
+        _ = ConfigStore.shared
+        ConfigStore.shared.startWatching()
+
         installMainMenu()
 
         let window = TerminalWindow()

@@ -40,10 +40,13 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private let samplerState: MTLSamplerState
     private var atlas: GlyphAtlas?
     private var scaleFactor: CGFloat = 2.0
-    private let pointSize: CGFloat = 14
 
-    private let cursorColor = SIMD4<Float>(0.85, 0.85, 0.90, 1.0)
-    private let selectionColor = SIMD4<Float>(0.25, 0.45, 0.75, 0.55)
+    /// Config-driven rendering parameters. Mutating any of these invalidates
+    /// the glyph atlas so the next frame picks up the new typography / colours.
+    var fontFamily: String = Config.default.font.family { didSet { if fontFamily != oldValue { atlas = nil } } }
+    var pointSize: CGFloat = CGFloat(Config.default.font.size) { didSet { if pointSize != oldValue { atlas = nil } } }
+    var cursorStyle: CursorStyle = .underline
+    var theme: Theme = .catppuccinMocha
 
     private var lastReportedRows: Int = 0
     private var lastReportedCols: Int = 0
@@ -227,25 +230,49 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                         atlasOrigin: solidOrigin,
                         atlasSize: solidSize,
                         cellSizePx: cellSize,
-                        color: selectionColor
+                        color: theme.selection
                     ))
                 }
             }
         }
 
-        // Cursor underline (2-pixel-tall solid bar at the bottom of the cursor cell).
+        // Cursor: shape depends on `cursorStyle`.
         if snapshot.cursorRow >= 0 && snapshot.cursorRow < snapshot.rows &&
             snapshot.cursorCol >= 0 && snapshot.cursorCol < snapshot.cols {
-            foregrounds.append(InstanceData(
-                cellOriginPx: SIMD2<Float>(
-                    Float(snapshot.cursorCol) * cellW,
-                    Float(snapshot.cursorRow) * cellH + cellH - underlineHeight
-                ),
-                atlasOrigin: solidOrigin,
-                atlasSize: solidSize,
-                cellSizePx: SIMD2<Float>(cellW, underlineHeight),
-                color: cursorColor
-            ))
+            let originX = Float(snapshot.cursorCol) * cellW
+            let originY = Float(snapshot.cursorRow) * cellH
+
+            let cursorInstance: InstanceData
+            switch cursorStyle {
+            case .underline:
+                cursorInstance = InstanceData(
+                    cellOriginPx: SIMD2<Float>(originX, originY + cellH - underlineHeight),
+                    atlasOrigin: solidOrigin,
+                    atlasSize: solidSize,
+                    cellSizePx: SIMD2<Float>(cellW, underlineHeight),
+                    color: theme.cursor
+                )
+            case .bar:
+                let barWidth: Float = 2
+                cursorInstance = InstanceData(
+                    cellOriginPx: SIMD2<Float>(originX, originY),
+                    atlasOrigin: solidOrigin,
+                    atlasSize: solidSize,
+                    cellSizePx: SIMD2<Float>(barWidth, cellH),
+                    color: theme.cursor
+                )
+            case .block:
+                var blockColor = theme.cursor
+                blockColor.w = 0.35  // semi-transparent so the char stays legible
+                cursorInstance = InstanceData(
+                    cellOriginPx: SIMD2<Float>(originX, originY),
+                    atlasOrigin: solidOrigin,
+                    atlasSize: solidSize,
+                    cellSizePx: cellSize,
+                    color: blockColor
+                )
+            }
+            foregrounds.append(cursorInstance)
         }
 
         return backgrounds + selections + foregrounds
@@ -254,14 +281,14 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private func makeAtlas(view: MTKView) -> GlyphAtlas {
         let scale = view.window?.backingScaleFactor ?? scaleFactor
         scaleFactor = scale
-        let font = Self.loadMonoFont(pixelSize: pointSize * scale)
+        let font = Self.loadMonoFont(family: fontFamily, pixelSize: pointSize * scale)
         let layout = GridLayout.make(font: font)
         DebugLog.log("GlyphAtlas init: font=\(CTFontCopyPostScriptName(font) as String) cellW=\(layout.cellWidth) cellH=\(layout.cellHeight) scale=\(scale)")
         return GlyphAtlas(device: device, font: font, layout: layout)
     }
 
-    private static func loadMonoFont(pixelSize: CGFloat) -> CTFont {
-        let candidates = ["JetBrainsMono-Regular", "SFMono-Regular", "Menlo-Regular"]
+    private static func loadMonoFont(family: String, pixelSize: CGFloat) -> CTFont {
+        let candidates = [family, "JetBrainsMono-Regular", "SFMono-Regular", "Menlo-Regular"]
         for name in candidates {
             let font = CTFontCreateWithName(name as CFString, pixelSize, nil)
             let psName = CTFontCopyPostScriptName(font) as String

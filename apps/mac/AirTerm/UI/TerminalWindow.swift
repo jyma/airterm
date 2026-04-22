@@ -13,6 +13,24 @@ final class TerminalWindow: NSWindow {
         }
     }
 
+    private var configToken: UUID?
+
+    private func applyTheme(_ theme: Theme) {
+        let bg = theme.background
+        backgroundColor = NSColor(
+            srgbRed: CGFloat(bg.x),
+            green: CGFloat(bg.y),
+            blue: CGFloat(bg.z),
+            alpha: 1
+        )
+    }
+
+    deinit {
+        if let token = configToken {
+            ConfigStore.shared.unsubscribe(token)
+        }
+    }
+
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
@@ -24,9 +42,16 @@ final class TerminalWindow: NSWindow {
         titlebarAppearsTransparent = true
         isMovableByWindowBackground = false
         minSize = NSSize(width: 480, height: 320)
-        backgroundColor = Palette.background
         tabbingMode = .preferred
         tabbingIdentifier = "airterm.tab-group"
+
+        applyTheme(ConfigStore.shared.theme)
+        alphaValue = CGFloat(ConfigStore.shared.config.window.opacity)
+
+        configToken = ConfigStore.shared.subscribe { [weak self] config, theme in
+            self?.applyTheme(theme)
+            self?.alphaValue = CGFloat(config.window.opacity)
+        }
 
         guard let content = contentView else { return }
 
@@ -207,9 +232,3 @@ final class TerminalWindow: NSWindow {
     }
 }
 
-enum Palette {
-    /// Catppuccin Mocha base.
-    static let background = NSColor(srgbRed: 0.118, green: 0.118, blue: 0.180, alpha: 1.0)
-    /// Catppuccin Mocha blue — active-pane border.
-    static let accent = NSColor(srgbRed: 0.537, green: 0.706, blue: 0.98, alpha: 1.0)
-}
