@@ -10,10 +10,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AirTerm",
-            path: "AirTerm",
-            resources: [
-                .copy("Resources/terminal.html"),
-            ]
+            path: "AirTerm"
         ),
         .testTarget(
             name: "AirTermTests",

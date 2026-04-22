@@ -12,7 +12,7 @@ final class TerminalScreen: @unchecked Sendable {
     private var mainCursorRow = 0
     private var mainCursorCol = 0
 
-    // Alternate screen (used by full-screen apps like vim, claude, etc.)
+    // Alternate screen (used by full-screen apps like vim, tmux, etc.)
     private var altGrid: [[Character]]
     private var altCursorRow = 0
     private var altCursorCol = 0

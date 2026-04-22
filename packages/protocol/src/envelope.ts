@@ -1,5 +1,3 @@
-import type { BusinessMessage } from './messages.js'
-
 // ---- Envelope: outer wrapper visible to relay server ----
 
 export type EnvelopeType = 'relay' | 'challenge' | 'auth'
@@ -29,10 +27,10 @@ export type Envelope = RelayEnvelope | ChallengeEnvelope | AuthEnvelope
 
 // ---- Sequenced message: business message with seq/ack ----
 
-export interface SequencedMessage {
+export interface SequencedMessage<TMessage = unknown> {
   readonly seq: number
   readonly ack: number
-  readonly message: BusinessMessage
+  readonly message: TMessage
 }
 
 // ---- Envelope helpers ----
@@ -57,10 +55,10 @@ export function createAuthEnvelope(deviceId: string, response: string): AuthEnve
 
 // ---- Serialization helpers (MVP: plaintext JSON) ----
 
-export function encodePayload(msg: SequencedMessage): string {
+export function encodePayload<T>(msg: SequencedMessage<T>): string {
   return btoa(JSON.stringify(msg))
 }
 
-export function decodePayload(payload: string): SequencedMessage {
-  return JSON.parse(atob(payload)) as SequencedMessage
+export function decodePayload<T = unknown>(payload: string): SequencedMessage<T> {
+  return JSON.parse(atob(payload)) as SequencedMessage<T>
 }

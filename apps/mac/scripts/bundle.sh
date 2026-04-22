@@ -32,7 +32,7 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>CFBundleName</key>
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>
-    <string>AirClaude</string>
+    <string>AirTerm</string>
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>CFBundlePackageType</key>
@@ -48,7 +48,7 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>AirClaude needs to read terminal tab contents to monitor your Claude CLI sessions.</string>
+    <string>AirTerm uses AppleEvents for optional integrations.</string>
 </dict>
 </plist>
 PLIST
@@ -61,7 +61,7 @@ echo "✅ Built: $APP_DIR"
 echo ""
 echo "Run with:  open $APP_DIR"
 echo ""
-echo "After first run, add AirClaude to:"
+echo "After first run, add AirTerm to:"
 echo "  System Settings → Privacy & Security → Accessibility"
 echo "  System Settings → Privacy & Security → Screen Recording"
 
