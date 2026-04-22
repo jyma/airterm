@@ -91,6 +91,18 @@ final class AccessibilityAdapter: AgentAdapter, @unchecked Sendable {
         handle.closeFile()
     }
 
+    /// Send raw characters without appending newline
+    func sendRaw(_ text: String, to sessionId: String) {
+        let tty = lock.withLock { sessionTty[sessionId] }
+        guard let tty else { return }
+        let ttyPath = tty.hasPrefix("/dev/") ? tty : "/dev/\(tty)"
+        guard let handle = FileHandle(forWritingAtPath: ttyPath) else { return }
+        if let data = text.data(using: .utf8) {
+            handle.write(data)
+        }
+        handle.closeFile()
+    }
+
     func onEvent(_ handler: @escaping @Sendable (String, TerminalEvent) -> Void) {
         lock.withLock { eventHandler = handler }
     }

@@ -1,6 +1,8 @@
 import { useReducer, useCallback } from 'react'
 import type { SessionInfo, TerminalEvent, SequencedMessage } from '@airterm/protocol'
 
+const MAX_EVENTS_PER_SESSION = 500
+
 export interface SessionState {
   readonly sessions: readonly SessionInfo[]
   readonly events: Record<string, readonly TerminalEvent[]>
@@ -15,14 +17,21 @@ function reducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
     case 'SET_SESSIONS':
       return { ...state, sessions: action.sessions }
-    case 'APPEND_EVENTS':
+    case 'APPEND_EVENTS': {
+      const existing = state.events[action.sessionId] ?? []
+      const combined = [...existing, ...action.events]
+      // Cap events to prevent unbounded memory growth
+      const capped = combined.length > MAX_EVENTS_PER_SESSION
+        ? combined.slice(combined.length - MAX_EVENTS_PER_SESSION)
+        : combined
       return {
         ...state,
         events: {
           ...state.events,
-          [action.sessionId]: [...(state.events[action.sessionId] ?? []), ...action.events],
+          [action.sessionId]: capped,
         },
       }
+    }
     case 'CLEAR_EVENTS':
       return {
         ...state,
@@ -55,5 +64,9 @@ export function useSessions() {
     }
   }, [])
 
-  return { ...state, handleMessage }
+  const clearEvents = useCallback((sessionId: string) => {
+    dispatch({ type: 'CLEAR_EVENTS', sessionId })
+  }, [])
+
+  return { ...state, handleMessage, clearEvents }
 }

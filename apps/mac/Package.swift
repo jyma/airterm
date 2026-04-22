@@ -12,7 +12,7 @@ let package = Package(
             name: "AirTerm",
             path: "AirTerm",
             resources: [
-                .process("Resources"),
+                .copy("Resources/terminal.html"),
             ]
         ),
         .testTarget(

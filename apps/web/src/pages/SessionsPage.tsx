@@ -92,7 +92,7 @@ export function SessionsPage() {
 
   if (!pairing) return null
 
-  // Desktop: sidebar + detail
+  // ─── Desktop: sidebar + detail ─────────────────────────────
   if (isDesktop) {
     return (
       <div className="flex flex-col h-screen bg-bg-primary">
@@ -108,11 +108,12 @@ export function SessionsPage() {
                 key={s.id}
                 session={s}
                 selected={s.id === activeSessionId}
+                compact
                 onClick={() => setActiveSessionId(s.id)}
               />
             ))}
             {sessions.length === 0 && (
-              <div className="flex items-center justify-center h-32 text-text-muted text-sm font-[family-name:var(--font-ui)]">
+              <div className="flex items-center justify-center h-32 text-text-muted text-sm">
                 暂无会话
               </div>
             )}
@@ -129,13 +130,13 @@ export function SessionsPage() {
                   onApprove={handleApprove}
                   onDeny={handleDeny}
                 />
-                <div className="bg-bg-secondary px-3.5 py-2 space-y-2">
+                <div className="border-t border-border bg-bg-primary px-4 py-2.5 space-y-2">
                   <InputBar onSend={handleSendInput} disabled={!activeSessionId} />
                   <QuickPanel onSend={handleShortcut} />
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-text-muted text-sm font-[family-name:var(--font-ui)]">
+              <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
                 {connectionState === 'connected'
                   ? '选择一个会话查看详情'
                   : '正在连接 Mac...'}
@@ -147,7 +148,7 @@ export function SessionsPage() {
     )
   }
 
-  // Mobile: multi-pane tmux view (when sessions exist)
+  // ─── Mobile: multi-pane tmux view ──────────────────────────
   if (sessions.length > 0) {
     return (
       <div className="flex flex-col h-screen bg-bg-primary">
@@ -158,10 +159,12 @@ export function SessionsPage() {
         <MultiPaneView
           sessions={sessions}
           events={events}
+          activeSessionId={activeSessionId}
+          onSelectSession={setActiveSessionId}
           onApprove={handleApprove}
           onDeny={handleDeny}
         />
-        <div className="bg-bg-secondary px-3.5 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] space-y-2">
+        <div className="border-t border-border bg-bg-primary px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] space-y-2">
           <InputBar onSend={handleSendInput} disabled={!activeSessionId} />
           <QuickPanel onSend={handleShortcut} />
         </div>
@@ -169,23 +172,32 @@ export function SessionsPage() {
     )
   }
 
-  // Mobile: empty state
+  // ─── Mobile: empty state ───────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-bg-primary">
       <TopBar
         connectionState={connectionState}
         onSettingsClick={() => navigate('/settings')}
       />
-      <div className="flex-1 flex flex-col items-center justify-center text-text-muted text-sm font-[family-name:var(--font-ui)]">
+      <div className="flex-1 flex flex-col items-center justify-center text-text-muted text-sm gap-2">
         {connectionState === 'connected' ? (
           <>
-            <span className="text-3xl mb-3">📡</span>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-text-muted/50 mb-2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
             <span>暂无活跃会话</span>
-            <span className="text-xs mt-1">在 Mac 上启动 Claude Code 开始使用</span>
+            <span className="text-xs">在 Mac 上启动 Claude Code 开始使用</span>
           </>
         ) : (
           <>
-            <span className="text-3xl mb-3">🔄</span>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-text-muted/50 mb-2 animate-pulse">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+              <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+              <line x1="12" y1="20" x2="12.01" y2="20" />
+            </svg>
             <span>正在连接 Mac...</span>
           </>
         )}

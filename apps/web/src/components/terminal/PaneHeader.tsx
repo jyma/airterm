@@ -12,32 +12,51 @@ const STATUS_LABELS: Record<string, string> = {
   ended: '已结束',
 }
 
+const STATUS_COLORS: Record<string, { dot: string; pill: string }> = {
+  active: {
+    dot: 'bg-accent-green animate-[pulse_2s_ease-in-out_infinite]',
+    pill: 'bg-accent-green/15 text-accent-green',
+  },
+  connected: {
+    dot: 'bg-accent-blue',
+    pill: 'bg-accent-blue/15 text-accent-blue',
+  },
+  discovered: {
+    dot: 'bg-accent-yellow',
+    pill: 'bg-accent-yellow/15 text-accent-yellow',
+  },
+  ended: {
+    dot: 'bg-text-muted',
+    pill: 'bg-bg-tertiary text-text-muted',
+  },
+}
+
 export function PaneHeader({ session, onBack }: PaneHeaderProps) {
+  const status = STATUS_COLORS[session.status] ?? STATUS_COLORS.ended
+  const label = STATUS_LABELS[session.status] ?? session.status
+
   return (
-    <div className="flex items-center justify-between px-4 h-[50px] bg-bg-secondary shrink-0">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between px-4 h-[50px] bg-bg-secondary shrink-0 border-b border-border">
+      <div className="flex items-center gap-2 min-w-0">
         {onBack && (
           <button
             onClick={onBack}
-            className="text-accent-blue shrink-0"
+            className="text-accent-blue shrink-0 -ml-1"
             aria-label="Back"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
         )}
-        <span className="text-base font-semibold text-text-primary truncate font-[family-name:var(--font-ui)]">
+        <span className="text-base font-semibold text-text-primary truncate">
           {session.name}
         </span>
       </div>
-      <div className="flex items-center gap-2.5 shrink-0">
-        <span className={`w-1.5 h-1.5 rounded-full ${
-          session.status === 'active' ? 'bg-accent-green animate-[pulse_2s_ease-in-out_infinite]' :
-          session.status === 'ended' ? 'bg-text-muted' : 'bg-accent-blue'
-        }`} />
-        <span className="text-[10px] text-text-secondary font-medium font-[family-name:var(--font-ui)] bg-bg-tertiary px-2 py-0.5 rounded">
-          {STATUS_LABELS[session.status] ?? session.status}
+      <div className="flex items-center gap-1.5 shrink-0 ml-3">
+        <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${status.pill}`}>
+          {label}
         </span>
       </div>
     </div>

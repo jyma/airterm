@@ -12,6 +12,9 @@ import { createTokenService } from './auth/token.js'
 import { createWSManager } from './ws/manager.js'
 import { createHealthRoutes } from './routes/health.js'
 import { createPairRoutes } from './routes/pair.js'
+import { createAuthRoutes } from './routes/auth.js'
+import { createRateLimiter } from './utils/rate-limit.js'
+import { createJWTService } from './auth/jwt.js'
 
 const config = loadConfig()
 const db = createDatabase(config.dbPath)
@@ -19,15 +22,51 @@ const devices = createDeviceRepository(db)
 const pairs = createPairRepository(db)
 const tokenService = createTokenService(config.jwtSecret)
 const wsManager = createWSManager({ tokenService, devices, pairs })
+const jwtService = createJWTService(config.jwtSecret)
+
+// Rate limiters
+const pairRateLimiter = createRateLimiter(10, 60_000) // 10 requests per minute per IP
+const globalRateLimiter = createRateLimiter(100, 60_000) // 100 requests per minute per IP
 
 const app = new Hono()
 
 app.use('*', cors())
+
+// Global rate limiting
+app.use('*', async (c, next) => {
+  const ip = c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip') ?? 'unknown'
+  if (!globalRateLimiter.check(ip)) {
+    return c.json({ error: 'Too many requests' }, 429)
+  }
+  await next()
+})
+
+// Stricter rate limit for pairing endpoints
+app.use('/api/pair/*', async (c, next) => {
+  const ip = c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip') ?? 'unknown'
+  if (!pairRateLimiter.check(ip)) {
+    return c.json({ error: 'Too many pairing attempts' }, 429)
+  }
+  await next()
+})
+
+// Security headers
+app.use('*', async (c, next) => {
+  await next()
+  c.header('X-Content-Type-Options', 'nosniff')
+  c.header('X-Frame-Options', 'DENY')
+  c.header('X-XSS-Protection', '1; mode=block')
+  c.header('Referrer-Policy', 'no-referrer')
+})
+
 app.route('/', createHealthRoutes())
 app.route('/', createPairRoutes({ devices, pairs, tokenService, config, wsManager }))
+app.route('/', createAuthRoutes({ jwtService, devices }))
+
+import { logger } from './utils/logger.js'
 
 const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`AirTerm relay server listening on http://localhost:${info.port}`)
+  logger.info('AirTerm relay server started', { port: info.port, domain: config.domain })
 })
 
 // Attach WebSocket server
@@ -65,16 +104,19 @@ function extractToken(request: IncomingMessage): string | null {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+function shutdown(signal: string) {
+  logger.info('Shutting down', { signal })
   wsManager.closeAll()
-  db.close()
-  process.exit(0)
-})
+  server.close(() => {
+    db.close()
+    logger.info('Server stopped')
+    process.exit(0)
+  })
+  // Force exit after 5 seconds
+  setTimeout(() => process.exit(1), 5000)
+}
 
-process.on('SIGINT', () => {
-  wsManager.closeAll()
-  db.close()
-  process.exit(0)
-})
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
 
 export { app, wsManager }

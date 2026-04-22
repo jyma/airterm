@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 
-const SERVER_URL = 'http://8.218.78.18'
-const WS_URL = 'ws://8.218.78.18'
+const SERVER_URL = process.env.E2E_SERVER_URL ?? 'http://localhost:3000'
+const WS_URL = SERVER_URL.replace(/^http/, 'ws')
 
-describe('E2E: WebSocket Message Relay', () => {
+const skipE2E = !process.env.E2E_SERVER_URL
+
+describe.skipIf(skipE2E)('E2E: WebSocket Message Relay', () => {
   let phoneToken: string
 
   beforeAll(async () => {

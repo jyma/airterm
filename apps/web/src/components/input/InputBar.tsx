@@ -3,9 +3,10 @@ import { useRef, useCallback, useState } from 'react'
 interface InputBarProps {
   readonly onSend: (text: string) => void
   readonly disabled?: boolean
+  readonly placeholder?: string
 }
 
-export function InputBar({ onSend, disabled = false }: InputBarProps) {
+export function InputBar({ onSend, disabled = false, placeholder = '输入消息...' }: InputBarProps) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -17,7 +18,6 @@ export function InputBar({ onSend, disabled = false }: InputBarProps) {
       setSending(true)
       onSend(text)
       setText('')
-      // Brief visual feedback
       setTimeout(() => {
         setSending(false)
         inputRef.current?.focus()
@@ -28,21 +28,19 @@ export function InputBar({ onSend, disabled = false }: InputBarProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 items-center">
-      <div className="flex-1 flex items-center bg-bg-tertiary rounded-[18px] px-3.5 h-[38px]">
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Send a message..."
-          disabled={disabled}
-          className="flex-1 bg-transparent text-[13px] text-text-primary font-[family-name:var(--font-ui)] placeholder:text-text-muted focus:outline-none"
-        />
-      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="flex-1 bg-bg-tertiary border border-transparent rounded-[20px] px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue transition-colors"
+      />
       <button
         type="submit"
         disabled={!text.trim() || disabled || sending}
-        className={`w-[38px] h-[38px] shrink-0 rounded-full text-white flex items-center justify-center disabled:opacity-30 transition-all ${
+        className={`w-10 h-10 shrink-0 rounded-full text-white flex items-center justify-center disabled:opacity-30 transition-all ${
           sending ? 'bg-accent-green scale-90' : 'bg-accent-blue active:opacity-70'
         }`}
         aria-label="Send"

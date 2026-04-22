@@ -2,10 +2,14 @@ node_modules/
 dist/
 .env
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 
 # Mac App
 apps/mac/.build/
+apps/mac/.swiftpm/
+apps/mac/build/
 apps/mac/AirTerm/build/
 apps/mac/AirTerm/*.xcuserdata
 *.xcworkspace

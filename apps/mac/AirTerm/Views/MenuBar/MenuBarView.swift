@@ -99,6 +99,14 @@ struct MenuBarView: View {
             if appState.needsOnboarding {
                 openWindow(id: "onboarding")
             }
+            // Auto-open main window on first launch
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if !appState.sessions.isEmpty {
+                    NSApplication.shared.setActivationPolicy(.regular)
+                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    openWindow(id: "main")
+                }
+            }
         }
     }
 

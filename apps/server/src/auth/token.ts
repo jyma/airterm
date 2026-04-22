@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 export interface TokenPayload {
   readonly deviceId: string
@@ -26,7 +26,9 @@ export function createTokenService(secret: string): TokenService {
     const [encoded, signature] = parts
     const expected = createHmac('sha256', secret).update(encoded).digest('base64url')
 
-    if (signature !== expected) return null
+    const sigBuf = Buffer.from(signature)
+    const expBuf = Buffer.from(expected)
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null
 
     try {
       const data = Buffer.from(encoded, 'base64url').toString()

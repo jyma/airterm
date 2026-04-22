@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 export interface JWTPayload {
   readonly deviceId: string
@@ -40,7 +40,9 @@ export function createJWTService(secret: string): JWTService {
 
     const [encoded, signature] = parts
     const expected = createHmac('sha256', secret).update(encoded).digest('base64url')
-    if (signature !== expected) return null
+    const sigBuf = Buffer.from(signature)
+    const expBuf = Buffer.from(expected)
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null
 
     try {
       const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as JWTPayload

@@ -6,6 +6,8 @@ export interface PairingInfo {
   readonly targetDeviceId: string
   readonly targetName: string
   readonly serverUrl: string
+  readonly pairedAt: number
+  readonly macPublicKey?: string
 }
 
 function isValidPairing(v: unknown): v is PairingInfo {

@@ -29,17 +29,19 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary font-[family-name:var(--font-ui)]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 bg-bg-secondary/80 backdrop-blur-xl border-b border-border">
+    <div className="min-h-screen bg-bg-primary">
+      {/* Header with glass effect */}
+      <header className="sticky top-0 z-50 flex items-center gap-3 px-4 h-[50px] glass border-b border-border">
         <button
           onClick={() => navigate(-1)}
-          className="text-accent-blue text-sm font-medium"
+          className="flex items-center gap-1 text-accent-blue text-sm font-medium"
           aria-label="Back"
         >
-          ‹ 返回
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          设置
         </button>
-        <span className="text-sm font-semibold text-text-primary">设置</span>
       </header>
 
       <div className="p-4 space-y-6 pb-12">
@@ -47,17 +49,22 @@ export function SettingsPage() {
         <Section title="外观">
           <Card>
             <Row label="主题">
-              <select
-                value={currentTheme}
-                onChange={(e) => handleThemeChange(e.target.value as Theme)}
-                className="bg-transparent text-sm text-text-secondary text-right appearance-none cursor-pointer focus:outline-none"
-              >
-                {(['system', 'light', 'dark'] as const).map((t) => (
-                  <option key={t} value={t}>
-                    {THEME_LABELS[t]}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1">
+                <select
+                  value={currentTheme}
+                  onChange={(e) => handleThemeChange(e.target.value as Theme)}
+                  className="bg-transparent text-sm text-text-secondary text-right appearance-none cursor-pointer focus:outline-none pr-4"
+                >
+                  {(['system', 'light', 'dark'] as const).map((t) => (
+                    <option key={t} value={t}>
+                      {THEME_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
             </Row>
           </Card>
         </Section>
@@ -68,43 +75,43 @@ export function SettingsPage() {
             <Row label="状态">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent-green" />
-                <span className="text-sm text-accent-green">已连接</span>
+                <span className="text-sm text-accent-green font-medium">已连接</span>
               </div>
             </Row>
           </Card>
         </Section>
 
         {/* Paired devices */}
-        {pairing && (
-          <Section title="已配对设备">
+        <Section title="已配对设备">
+          {pairing && (
             <Card>
               <div className="px-4 py-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                   <div>
                     <div className="text-sm font-medium text-text-primary">
                       {pairing.targetName}
                     </div>
                     <div className="text-xs text-text-muted mt-0.5">
-                      配对于 {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                      配对于 {new Date(pairing.pairedAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })} · 最后活跃: 刚刚
                     </div>
                   </div>
                   <button
                     onClick={handleUnpair}
-                    className="text-sm text-accent-red font-medium"
+                    className="text-sm text-accent-red font-medium shrink-0"
                   >
                     撤销
                   </button>
                 </div>
               </div>
             </Card>
-            <button
-              onClick={() => navigate('/pair')}
-              className="w-full mt-3 py-3 rounded-xl border border-accent-blue text-sm text-accent-blue font-medium active:scale-[0.98] transition-transform"
-            >
-              + 配对新设备
-            </button>
-          </Section>
-        )}
+          )}
+          <button
+            onClick={() => navigate('/pair')}
+            className="w-full mt-3 py-3 rounded-[var(--radius-card)] border border-accent-blue text-sm text-accent-blue font-medium active:scale-[0.98] transition-transform"
+          >
+            + 配对新设备
+          </button>
+        </Section>
 
         {/* Security */}
         <Section title="安全">
@@ -118,20 +125,20 @@ export function SettingsPage() {
             </Row>
             <Divider />
             <Row label="自动锁定">
-              <span className="text-sm text-text-secondary">30 分钟</span>
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-text-secondary">30 分钟</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
             </Row>
           </Card>
         </Section>
 
         {/* About */}
-        <Section title="关于">
-          <Card>
-            <div className="px-4 py-3">
-              <div className="text-sm text-text-primary">AirTerm v0.1.0</div>
-              <div className="text-xs text-text-muted mt-1">Remote control for Claude Code CLI</div>
-            </div>
-          </Card>
-        </Section>
+        <div className="text-center pt-4">
+          <div className="text-xs text-text-muted">AirTerm v0.1.0</div>
+        </div>
       </div>
     </div>
   )
@@ -146,7 +153,7 @@ function Section({
 }) {
   return (
     <section>
-      <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2 px-1">{title}</h3>
+      <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2 px-1 font-medium">{title}</h3>
       {children}
     </section>
   )
@@ -154,7 +161,7 @@ function Section({
 
 function Card({ children }: { readonly children: React.ReactNode }) {
   return (
-    <div className="bg-bg-secondary rounded-xl border border-border overflow-hidden">
+    <div className="bg-bg-secondary rounded-[var(--radius-card)] overflow-hidden">
       {children}
     </div>
   )
@@ -162,7 +169,7 @@ function Card({ children }: { readonly children: React.ReactNode }) {
 
 function Row({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3">
+    <div className="flex items-center justify-between px-4 h-[50px]">
       <span className="text-sm text-text-primary">{label}</span>
       {children}
     </div>
@@ -170,7 +177,7 @@ function Row({ label, children }: { readonly label: string; readonly children: R
 }
 
 function Divider() {
-  return <div className="border-t border-border mx-4" />
+  return <div className="border-t border-border ml-4" />
 }
 
 function Toggle({
@@ -185,16 +192,15 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${
+      className={`relative w-[51px] h-[31px] rounded-full transition-colors ${
         checked ? 'bg-accent-green' : 'bg-bg-tertiary'
       }`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0'
+        className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] rounded-full bg-white shadow-sm transition-transform ${
+          checked ? 'translate-x-[20px]' : 'translate-x-0'
         }`}
       />
     </button>
   )
 }
-

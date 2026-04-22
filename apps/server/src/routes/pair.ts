@@ -24,8 +24,11 @@ export function createPairRoutes(deps: PairRouteDeps): Hono {
   app.post('/api/pair/init', async (c) => {
     const body = await c.req.json<{ macDeviceId: string; macName: string }>()
 
-    if (!body.macDeviceId || !body.macName) {
-      return c.json({ error: 'macDeviceId and macName are required' }, 400)
+    if (!body.macDeviceId || typeof body.macDeviceId !== 'string' || body.macDeviceId.length > 128) {
+      return c.json({ error: 'macDeviceId is required (max 128 chars)' }, 400)
+    }
+    if (!body.macName || typeof body.macName !== 'string' || body.macName.length > 256) {
+      return c.json({ error: 'macName is required (max 256 chars)' }, 400)
     }
 
     // Upsert mac device
@@ -71,11 +74,18 @@ export function createPairRoutes(deps: PairRouteDeps): Hono {
       phoneName: string
     }>()
 
-    if (!body.pairCode || !body.phoneDeviceId || !body.phoneName) {
-      return c.json({ error: 'pairCode, phoneDeviceId, and phoneName are required' }, 400)
+    if (!body.pairCode || typeof body.pairCode !== 'string' || body.pairCode.length > 20) {
+      return c.json({ error: 'Invalid pairCode' }, 400)
+    }
+    if (!body.phoneDeviceId || typeof body.phoneDeviceId !== 'string' || body.phoneDeviceId.length > 128) {
+      return c.json({ error: 'phoneDeviceId is required (max 128 chars)' }, 400)
+    }
+    if (!body.phoneName || typeof body.phoneName !== 'string' || body.phoneName.length > 256) {
+      return c.json({ error: 'phoneName is required (max 256 chars)' }, 400)
     }
 
-    const pair = deps.pairs.findByCode(body.pairCode)
+    const normalizedCode = body.pairCode.toUpperCase()
+    const pair = deps.pairs.findByCode(normalizedCode)
 
     if (!pair) {
       return c.json({ error: 'Invalid or expired pair code' }, 404)
@@ -111,13 +121,12 @@ export function createPairRoutes(deps: PairRouteDeps): Hono {
     // Complete pairing
     deps.pairs.complete(pair.id, body.phoneDeviceId)
 
-    // Notify Mac via WebSocket
+    // Notify Mac via WebSocket (no token in notification — Mac already has it)
     const macDevice = deps.devices.findById(pair.mac_device_id)
     deps.wsManager.sendToDevice(pair.mac_device_id, {
       type: 'pair_completed',
       phoneDeviceId: body.phoneDeviceId,
       phoneName: body.phoneName,
-      token: deps.devices.findById(pair.mac_device_id)?.token ?? '',
     })
 
     return c.json({

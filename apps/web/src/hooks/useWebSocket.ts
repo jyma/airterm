@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createWSClient, type WSClient, type ConnectionState } from '@/lib/ws-client'
 import type { BusinessMessage, SequencedMessage } from '@airterm/protocol'
+import type { CryptoLayer } from '@/lib/crypto-layer'
 
 export interface UseWebSocketOptions {
   readonly url: string
@@ -8,6 +9,7 @@ export interface UseWebSocketOptions {
   readonly deviceId: string
   readonly targetDeviceId: string
   readonly onMessage?: (msg: SequencedMessage) => void
+  readonly cryptoLayer?: CryptoLayer | null
 }
 
 export interface UseWebSocketReturn {
@@ -31,6 +33,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       targetDeviceId: options.targetDeviceId,
       onMessage: (msg) => onMessageRef.current?.(msg),
       onStateChange: setState,
+      cryptoLayer: options.cryptoLayer,
     })
 
     clientRef.current = client
@@ -40,7 +43,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       client.disconnect()
       clientRef.current = null
     }
-  }, [options.url, options.token, options.deviceId, options.targetDeviceId])
+  }, [options.url, options.token, options.deviceId, options.targetDeviceId, options.cryptoLayer])
 
   const send = useCallback((msg: BusinessMessage) => {
     clientRef.current?.send(msg)

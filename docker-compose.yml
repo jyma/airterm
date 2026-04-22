@@ -2,12 +2,14 @@ services:
   relay:
     build: .
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
       - PORT=3000
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required (min 32 chars)}
       - DB_PATH=/data/airterm.db
-      - PAIR_CODE_TTL=300
+      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY:-}
+      - PAIR_CODE_TTL=${PAIR_CODE_TTL:-300}
+      - DOMAIN=${DOMAIN:-relay.airterm.ai}
     volumes:
       - airterm-data:/data
     restart: unless-stopped
@@ -16,6 +18,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   airterm-data:

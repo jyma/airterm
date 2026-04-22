@@ -5,9 +5,14 @@ import SwiftUI
 @MainActor
 @Observable
 final class AppState {
+    // Terminal tabs
+    var tabs: [TerminalTab] = []
+    var activeTabId: String?
+
+    // Legacy (relay/pairing)
     var sessions: [Session] = []
     var events: [String: [TerminalEvent]] = [:]
-    var terminalContents: [String: String] = [:]  // sessionId -> live terminal text
+    var terminalContents: [String: String] = [:]
     var connectionState: RelayClient.State = .disconnected
     var pairedDevices: [PairedDevice] = []
     var isPairing = false
@@ -44,7 +49,7 @@ final class AppState {
     private(set) var inputHandler: InputHandler?
 
     func setup() {
-        DebugLog.log("[AppState] setup() called, AX=\(TerminalReader.hasPermission), screenCapture=\(TerminalReader.hasScreenCapturePermission)")
+        DebugLog.log("[AppState] setup()")
 
         // Load persisted paired devices
         loadPairedDevices()
@@ -54,27 +59,35 @@ final class AppState {
             connectRelay(token: token)
         }
 
-        // Subprocess mode (always available)
-        let subprocess = SubprocessAdapter()
-        self.subprocessAdapter = subprocess
+        // Create first terminal tab
+        createTab()
+    }
 
-        subprocess.onEvent { [weak self] sessionId, event in
-            Task { @MainActor in
-                self?.events[sessionId, default: []].append(event)
-                self?.sendEventToAllPhones(sessionId: sessionId, event: event)
-                self?.refreshSessions()
-            }
+    var defaultShell: String {
+        ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+    }
+
+    // MARK: - Tab Management
+
+    func createTab(title: String? = nil) {
+        let tab = TerminalTab(title: title ?? "Terminal \(tabs.count + 1)")
+        tabs.append(tab)
+        activeTabId = tab.id
+    }
+
+    func closeTab(_ id: String) {
+        tabs.removeAll { $0.id == id }
+        if activeTabId == id {
+            activeTabId = tabs.last?.id
         }
-
-        self.inputHandler = InputHandler(adapter: subprocess)
-
-        // Accessibility mode — always try to enable, poll if needed
-        if TerminalReader.hasPermission {
-            enableAccessibility()
-        } else {
-            DebugLog.log("[AppState] No AX permission at startup, starting poll")
-            startPermissionPolling()
+        // If no tabs left, create a new one
+        if tabs.isEmpty {
+            createTab()
         }
+    }
+
+    func selectTab(_ id: String) {
+        activeTabId = id
     }
 
     /// Enable AX API monitoring for external terminals
@@ -178,9 +191,10 @@ final class AppState {
         client.connect()
     }
 
-    func createSession(command: String = "claude") {
+    func createSession(command: String? = nil) {
         guard let subprocessAdapter else { return }
-        let session = subprocessAdapter.createSession(command: command)
+        let cmd = command ?? defaultShell
+        let session = subprocessAdapter.createSession(command: cmd)
         refreshSessions()
         selectedSessionId = session.id
     }
@@ -383,9 +397,25 @@ final class AppState {
 
     // MARK: - Public Input Routing (for Mac-side UI)
 
-    /// Route input from Mac UI to the correct adapter
+    /// Route input from Mac UI to the correct adapter (adds newline)
     func sendInputFromUI(_ text: String, sessionId: String) {
+        DebugLog.log("[AppState] sendInputFromUI sessionId=\(sessionId) text=\(text.prefix(40))")
         routeInput(text, sessionId: sessionId)
+    }
+
+    /// Route raw keystrokes without newline (for direct terminal typing)
+    func sendRawInput(_ text: String, sessionId: String) {
+        guard let session = sessions.first(where: { $0.id == sessionId }) else {
+            DebugLog.log("[AppState] sendRawInput: session \(sessionId) NOT FOUND in \(sessions.count) sessions")
+            return
+        }
+        DebugLog.log("[AppState] sendRawInput → \(session.source) tty session=\(sessionId)")
+        switch session.source {
+        case .subprocess:
+            subprocessAdapter?.sendRaw(text, to: sessionId)
+        case .accessibility:
+            accessibilityAdapter?.sendRaw(text, to: sessionId)
+        }
     }
 
     /// Route approval from Mac UI to the correct adapter

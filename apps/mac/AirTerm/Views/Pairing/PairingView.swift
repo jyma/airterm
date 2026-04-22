@@ -3,7 +3,7 @@ import CoreImage.CIFilterBuiltins
 
 struct PairingView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var remainingSeconds = 0
     @State private var timer: Timer?
 
@@ -11,7 +11,7 @@ struct PairingView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Button(action: { dismiss() }) {
+                Button(action: { dismissWindow(id: "pairing") }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
                         Text("返回")
@@ -95,7 +95,7 @@ struct PairingView: View {
         .onAppear { startTimer() }
         .onDisappear { timer?.invalidate() }
         .onChange(of: appState.isPairing) { _, isPairing in
-            if !isPairing { dismiss() }
+            if !isPairing { dismissWindow(id: "pairing") }
         }
     }
 

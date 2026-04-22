@@ -44,7 +44,7 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
-    <true/>
+    <false/>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
@@ -64,3 +64,6 @@ echo ""
 echo "After first run, add AirClaude to:"
 echo "  System Settings → Privacy & Security → Accessibility"
 echo "  System Settings → Privacy & Security → Screen Recording"
+
+# Copy terminal resources
+cp -r ".build/debug/AirTerm_AirTerm.bundle" "$APP_DIR/Contents/Resources/" 2>/dev/null || true

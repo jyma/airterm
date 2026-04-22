@@ -25,6 +25,8 @@ final class TerminalEmulator: @unchecked Sendable {
         arguments: [String] = [],
         cwd: URL? = nil,
         environment: [String: String] = [:],
+        rows: UInt16 = 24,
+        cols: UInt16 = 80,
         onOutput: @escaping (Data) -> Void
     ) throws {
         self.onOutput = onOutput
@@ -38,14 +40,14 @@ final class TerminalEmulator: @unchecked Sendable {
         self.masterFD = master
         self.slaveFD = slave
 
-        // Set pty size
-        var winSize = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+        // Set pty size from caller (must match xterm.js dimensions)
+        var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
         _ = ioctl(master, TIOCSWINSZ, &winSize)
 
         // Use Process with pty file handles
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = [command] + arguments
+        proc.executableURL = URL(fileURLWithPath: command)
+        proc.arguments = arguments
 
         if let cwd = cwd {
             proc.currentDirectoryURL = cwd
@@ -70,6 +72,9 @@ final class TerminalEmulator: @unchecked Sendable {
 
         try proc.run()
         self.process = proc
+
+        // Re-set PTY size AFTER process starts (Process may reset it)
+        _ = ioctl(master, TIOCSWINSZ, &winSize)
 
         // Close slave in parent — child owns it
         close(slave)
@@ -114,11 +119,15 @@ final class TerminalEmulator: @unchecked Sendable {
         write(data)
     }
 
-    /// Resize the pty
+    /// Resize the pty and notify the child process
     func resize(rows: UInt16, cols: UInt16) {
         guard masterFD >= 0 else { return }
         var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
         _ = ioctl(masterFD, TIOCSWINSZ, &winSize)
+        // Notify child of size change
+        if let pid = process?.processIdentifier, pid > 0 {
+            kill(pid, SIGWINCH)
+        }
     }
 
     /// Check if child process is alive

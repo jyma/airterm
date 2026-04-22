@@ -7,7 +7,7 @@ final class TerminalContentStore: @unchecked Sendable {
 
     private let lock = NSLock()
     private var contents: [String: String] = [:]
-    private var listeners: [String: [(String) -> Void]] = [:]
+    private var listeners: [String: [(id: UUID, callback: (String) -> Void)]] = [:]
 
     func update(sessionId: String, content: String) {
         lock.lock()
@@ -17,8 +17,8 @@ final class TerminalContentStore: @unchecked Sendable {
         lock.unlock()
 
         if changed {
-            for cb in callbacks {
-                cb(content)
+            for entry in callbacks {
+                entry.callback(content)
             }
         }
     }
@@ -30,15 +30,22 @@ final class TerminalContentStore: @unchecked Sendable {
     func listen(sessionId: String, callback: @escaping (String) -> Void) -> UUID {
         let id = UUID()
         lock.lock()
-        listeners[sessionId, default: []].append(callback)
+        listeners[sessionId, default: []].append((id: id, callback: callback))
         lock.unlock()
-        // Send current content immediately
         let current = get(sessionId: sessionId)
         if !current.isEmpty { callback(current) }
         return id
     }
 
+    func removeListener(sessionId: String, id: UUID) {
+        lock.lock()
+        listeners[sessionId]?.removeAll { $0.id == id }
+        lock.unlock()
+    }
+
     func removeAllListeners(sessionId: String) {
-        lock.withLock { listeners.removeValue(forKey: sessionId) }
+        lock.lock()
+        listeners.removeValue(forKey: sessionId)
+        lock.unlock()
     }
 }

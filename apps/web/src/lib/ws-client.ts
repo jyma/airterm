@@ -1,6 +1,7 @@
 import type { SequencedMessage, RelayEnvelope } from '@airterm/protocol'
-import { createRelayEnvelope, encodePayload, decodePayload } from '@airterm/protocol'
+import { createRelayEnvelope } from '@airterm/protocol'
 import type { BusinessMessage } from '@airterm/protocol'
+import type { CryptoLayer } from './crypto-layer.js'
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 
@@ -11,6 +12,7 @@ export interface WSClientOptions {
   readonly targetDeviceId: string
   readonly onMessage: (msg: SequencedMessage) => void
   readonly onStateChange: (state: ConnectionState) => void
+  readonly cryptoLayer?: CryptoLayer | null
 }
 
 export interface WSClient {
@@ -39,6 +41,22 @@ export function createWSClient(options: WSClientOptions): WSClient {
     }
   }
 
+  function encodeMessage(msg: SequencedMessage): string {
+    const json = JSON.stringify(msg)
+    if (options.cryptoLayer?.isActive) {
+      return options.cryptoLayer.encryptPayload(json)
+    }
+    return btoa(json)
+  }
+
+  function decodeMessage(payload: string): SequencedMessage {
+    if (options.cryptoLayer?.isActive) {
+      const json = options.cryptoLayer.decryptPayload(payload)
+      return JSON.parse(json) as SequencedMessage
+    }
+    return JSON.parse(atob(payload)) as SequencedMessage
+  }
+
   function connect(): void {
     if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) {
       return
@@ -59,12 +77,12 @@ export function createWSClient(options: WSClientOptions): WSClient {
       try {
         const envelope = JSON.parse(event.data as string) as RelayEnvelope
         if (envelope.type === 'relay' && envelope.payload) {
-          const sequenced = decodePayload(envelope.payload)
+          const sequenced = decodeMessage(envelope.payload)
           lastAck = Math.max(lastAck, sequenced.seq)
           options.onMessage(sequenced)
         }
-      } catch (err) {
-        console.error('[ws] message parse error:', err, event.data)
+      } catch {
+        // Skip unparseable messages
       }
     }
 
@@ -94,7 +112,7 @@ export function createWSClient(options: WSClientOptions): WSClient {
 
     seq++
     const sequenced: SequencedMessage = { seq, ack: lastAck, message: msg }
-    const payload = encodePayload(sequenced)
+    const payload = encodeMessage(sequenced)
     const envelope = createRelayEnvelope(options.deviceId, options.targetDeviceId, payload)
     ws.send(JSON.stringify(envelope))
   }

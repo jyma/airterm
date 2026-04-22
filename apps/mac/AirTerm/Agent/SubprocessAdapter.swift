@@ -8,16 +8,26 @@ final class SubprocessAdapter: AgentAdapter, @unchecked Sendable {
     private var emulators: [String: TerminalEmulator] = [:]
     private var streamParsers: [String: StreamParser] = [:]
     private var eventHandler: (@Sendable (String, TerminalEvent) -> Void)?
+    private var contentHandler: (@Sendable (String, String) -> Void)?
     private var outputBuffers: [String: String] = [:]
+    private var screens: [String: TerminalScreen] = [:]
 
     var sessions: [Session] {
         lock.withLock { Array(_sessions.values) }
     }
 
-    func createSession(command: String = "claude", cwd: URL? = nil) -> Session {
+    func createSession(command: String = "/bin/zsh", cwd: URL? = nil) -> Session {
+        let displayName: String
+        if command.contains("/") {
+            displayName = (command as NSString).lastPathComponent
+        } else {
+            displayName = command
+        }
+
+        let workingDir = cwd?.path ?? FileManager.default.homeDirectoryForCurrentUser.path
         let session = Session(
-            name: command == "claude" ? "Claude Session" : command,
-            cwd: cwd?.path ?? FileManager.default.currentDirectoryPath,
+            name: "Terminal — \(displayName)",
+            cwd: workingDir,
             terminal: "AirTerm",
             status: .connected,
             source: .subprocess
@@ -28,21 +38,36 @@ final class SubprocessAdapter: AgentAdapter, @unchecked Sendable {
         lock.withLock {
             _sessions[session.id] = session
             emulators[session.id] = emulator
+            screens[session.id] = TerminalScreen(rows: 50, cols: 120)
             outputBuffers[session.id] = ""
         }
 
+        // If command is a full path (e.g. /bin/zsh), run it directly.
+        // Otherwise use /usr/bin/env to resolve it.
+        let executable: String
+        let arguments: [String]
+        if command.hasPrefix("/") {
+            executable = command
+            arguments = ["--login"]  // login shell for proper PATH
+        } else {
+            executable = "/usr/bin/env"
+            arguments = [command]
+        }
+
         do {
+            DebugLog.log("[SubprocessAdapter] Starting: \(executable) \(arguments) cwd=\(workingDir)")
             try emulator.start(
-                command: "/usr/bin/env",
-                arguments: [command],
-                cwd: cwd,
+                command: executable,
+                arguments: arguments,
+                cwd: cwd ?? URL(fileURLWithPath: workingDir),
                 onOutput: { [weak self] data in
                     self?.handleOutput(sessionId: session.id, data: data)
                 }
             )
-
             updateSession(session.id) { $0.status = .active }
+            DebugLog.log("[SubprocessAdapter] Process started, isRunning=\(emulator.isRunning)")
         } catch {
+            DebugLog.log("[SubprocessAdapter] Failed to start \(command): \(error)")
             updateSession(session.id) { $0.status = .ended }
         }
 
@@ -54,8 +79,18 @@ final class SubprocessAdapter: AgentAdapter, @unchecked Sendable {
         emulator?.writeString(input + "\n")
     }
 
+    /// Send raw characters without appending newline (for keystroke forwarding)
+    func sendRaw(_ text: String, to sessionId: String) {
+        let emulator = lock.withLock { emulators[sessionId] }
+        emulator?.writeString(text)
+    }
+
     func onEvent(_ handler: @escaping @Sendable (String, TerminalEvent) -> Void) {
         lock.withLock { eventHandler = handler }
+    }
+
+    func onContentUpdate(_ handler: @escaping @Sendable (String, String) -> Void) {
+        lock.withLock { contentHandler = handler }
     }
 
     func terminateSession(_ sessionId: String) {
@@ -64,19 +99,32 @@ final class SubprocessAdapter: AgentAdapter, @unchecked Sendable {
             emulators.removeValue(forKey: sessionId)
             streamParsers.removeValue(forKey: sessionId)
             outputBuffers.removeValue(forKey: sessionId)
+            screens.removeValue(forKey: sessionId)
             _sessions[sessionId]?.status = .ended
         }
     }
 
     // MARK: - Private
 
+    private var outputCount = 0
     private func handleOutput(sessionId: String, data: Data) {
         guard let text = String(data: data, encoding: .utf8) else { return }
 
-        // Buffer output for parsing
-        lock.withLock {
-            outputBuffers[sessionId, default: ""] += text
+        outputCount += 1
+        if outputCount <= 10 {
+            let hex = data.prefix(100).map { String(format: "%02x", $0) }.joined(separator: " ")
+            DebugLog.log("[PTY:\(outputCount)] \(data.count)B hex=\(hex)")
+            DebugLog.log("[PTY:\(outputCount)] text=\(text.prefix(120).debugDescription)")
         }
+
+        // Process through terminal state machine for clean screen content
+        let screen = lock.withLock { screens[sessionId] }
+        let fullContent = screen?.process(text) ?? text
+
+        lock.withLock { outputBuffers[sessionId] = fullContent }
+
+        let onContent = lock.withLock { contentHandler }
+        onContent?(sessionId, fullContent)
 
         // Update last output
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
