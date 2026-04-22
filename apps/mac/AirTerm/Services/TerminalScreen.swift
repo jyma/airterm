@@ -1,24 +1,34 @@
 import Foundation
 
+/// Immutable snapshot of the visible terminal viewport at a moment in time.
+struct TerminalSnapshot {
+    let grid: [[Cell]]
+    let cursorRow: Int
+    let cursorCol: Int
+    let rows: Int
+    let cols: Int
+}
+
 /// VT100/xterm terminal state machine with alternate screen buffer support.
-/// Maintains a character grid and processes raw PTY output into clean screen content.
+/// Maintains a character+attribute grid and processes raw PTY output.
 final class TerminalScreen: @unchecked Sendable {
     private let lock = NSLock()
     private var rows: Int
     private var cols: Int
 
     // Primary screen
-    private var mainGrid: [[Character]]
+    private var mainGrid: [[Cell]]
     private var mainCursorRow = 0
     private var mainCursorCol = 0
 
     // Alternate screen (used by full-screen apps like vim, tmux, etc.)
-    private var altGrid: [[Character]]
+    private var altGrid: [[Cell]]
     private var altCursorRow = 0
     private var altCursorCol = 0
     private var useAltScreen = false
 
-    // Scrollback (only for main screen)
+    // Scrollback (only for main screen) — plain text for now; color scrollback
+    // is deferred to Step 4.
     private var scrollback: [String] = []
     private let maxScrollback = 10000
 
@@ -29,6 +39,9 @@ final class TerminalScreen: @unchecked Sendable {
     // Saved cursor
     private var savedRow = 0
     private var savedCol = 0
+
+    // SGR state — applied to every printable char written from now on.
+    private var currentAttrs = CellAttributes.default
 
     // Parser
     private var state: ParseState = .ground
@@ -44,7 +57,7 @@ final class TerminalScreen: @unchecked Sendable {
     }
 
     // Current grid/cursor accessors
-    private var grid: [[Character]] {
+    private var grid: [[Cell]] {
         get { useAltScreen ? altGrid : mainGrid }
         set {
             if useAltScreen { altGrid = newValue }
@@ -74,56 +87,47 @@ final class TerminalScreen: @unchecked Sendable {
         altGrid = Self.emptyGrid(rows: rows, cols: cols)
     }
 
-    private static func emptyGrid(rows: Int, cols: Int) -> [[Character]] {
-        Array(repeating: Array(repeating: Character(" "), count: cols), count: rows)
+    private static func emptyGrid(rows: Int, cols: Int) -> [[Cell]] {
+        Array(repeating: Array(repeating: Cell.empty, count: cols), count: rows)
     }
 
-    func process(_ data: Data) -> String {
-        guard let text = String(data: data, encoding: .utf8) else { return currentContent() }
-        return process(text)
+    /// The current background-filled cell: space glyph with the SGR background
+    /// of the moment (so `\e[41mK` really does leave red bars behind).
+    private func erasedCell() -> Cell {
+        var attrs = CellAttributes.default
+        attrs.bg = currentAttrs.bg
+        return Cell(char: " ", attrs: attrs)
     }
 
-    func process(_ text: String) -> String {
+    private func erasedRow() -> [Cell] {
+        Array(repeating: erasedCell(), count: cols)
+    }
+
+    func process(_ data: Data) {
+        guard let text = String(data: data, encoding: .utf8) else { return }
+        process(text)
+    }
+
+    func process(_ text: String) {
         lock.lock()
         // MUST iterate over unicodeScalars, not Characters.
         // Swift merges \r\n into a single Character, breaking CR/LF handling.
         for scalar in text.unicodeScalars {
-            processScalar(scalar)
+            processChar(Character(scalar))
         }
         lock.unlock()
-        return currentContent()
     }
 
-    private func processScalar(_ scalar: Unicode.Scalar) {
-        processChar(Character(scalar))
-    }
-
-    func currentContent() -> String {
+    func snapshot() -> TerminalSnapshot {
         lock.lock()
         defer { lock.unlock() }
-
-        var visible: [String] = []
-        let g = useAltScreen ? altGrid : mainGrid
-        for row in g {
-            let line = String(row)
-            // Trim trailing spaces
-            var end = line.endIndex
-            while end > line.startIndex {
-                let prev = line.index(before: end)
-                if line[prev] == " " { end = prev } else { break }
-            }
-            visible.append(String(line[line.startIndex..<end]))
-        }
-
-        // Remove trailing empty lines
-        while visible.count > 1 && visible.last?.isEmpty == true {
-            visible.removeLast()
-        }
-
-        if useAltScreen || scrollback.isEmpty {
-            return visible.joined(separator: "\n")
-        }
-        return scrollback.joined(separator: "\n") + "\n" + visible.joined(separator: "\n")
+        return TerminalSnapshot(
+            grid: useAltScreen ? altGrid : mainGrid,
+            cursorRow: useAltScreen ? altCursorRow : mainCursorRow,
+            cursorCol: useAltScreen ? altCursorCol : mainCursorCol,
+            rows: rows,
+            cols: cols
+        )
     }
 
     func resize(newRows: Int, newCols: Int) {
@@ -140,7 +144,7 @@ final class TerminalScreen: @unchecked Sendable {
         altCursorCol = min(altCursorCol, newCols - 1)
     }
 
-    private static func resizeGrid(_ old: [[Character]], rows: Int, cols: Int) -> [[Character]] {
+    private static func resizeGrid(_ old: [[Cell]], rows: Int, cols: Int) -> [[Cell]] {
         var g = emptyGrid(rows: rows, cols: cols)
         for r in 0..<min(old.count, rows) {
             for c in 0..<min(old[r].count, cols) {
@@ -179,7 +183,7 @@ final class TerminalScreen: @unchecked Sendable {
                 cursorCol = 0
                 lineFeed()
             }
-            grid[cursorRow][cursorCol] = ch
+            grid[cursorRow][cursorCol] = Cell(char: ch, attrs: currentAttrs)
             cursorCol += 1
         }
     }
@@ -208,8 +212,11 @@ final class TerminalScreen: @unchecked Sendable {
 
         state = .ground
         let isPrivate = paramBuf.hasPrefix("?")
-        let cleanBuf = paramBuf.filter { $0.isNumber || $0 == ";" }
-        let params = cleanBuf.split(separator: ";").compactMap { Int($0) }
+        // Normalise colon separators (ISO 8613-6: 38:2::r:g:b) to semicolons.
+        let cleanBuf = paramBuf
+            .filter { $0.isNumber || $0 == ";" || $0 == ":" }
+            .replacingOccurrences(of: ":", with: ";")
+        let params = cleanBuf.split(separator: ";", omittingEmptySubsequences: false).map { Int($0) ?? 0 }
 
         if isPrivate {
             handlePrivateMode(ch, params: params)
@@ -250,7 +257,8 @@ final class TerminalScreen: @unchecked Sendable {
         case "@": insertChars(max(params.first ?? 1, 1))
         case "X": // ECH — erase characters
             let n = max(params.first ?? 1, 1)
-            for i in 0..<n where cursorCol + i < cols { grid[cursorRow][cursorCol + i] = " " }
+            let blank = erasedCell()
+            for i in 0..<n where cursorCol + i < cols { grid[cursorRow][cursorCol + i] = blank }
         case "S": for _ in 0..<max(params.first ?? 1, 1) { scrollUp() }
         case "T": for _ in 0..<max(params.first ?? 1, 1) { scrollDown() }
         case "d": cursorRow = min(max((params.first ?? 1) - 1, 0), rows - 1) // VPA
@@ -261,13 +269,68 @@ final class TerminalScreen: @unchecked Sendable {
             cursorCol = 0
         case "s": savedRow = cursorRow; savedCol = cursorCol // SCP
         case "u": cursorRow = savedRow; cursorCol = savedCol // RCP
-        case "m": break // SGR — handled by renderer
+        case "m": applySGR(params: params)
         case "h", "l": break // SM/RM — standard modes, ignore
         case "n": break // DSR — device status report, ignore
         case "t": break // window manipulation, ignore
         case "c": break // DA — device attributes, ignore
         default: break
         }
+    }
+
+    // MARK: - SGR
+
+    private func applySGR(params: [Int]) {
+        let params = params.isEmpty ? [0] : params
+        var i = 0
+        while i < params.count {
+            let code = params[i]
+            switch code {
+            case 0: currentAttrs = .default
+            case 1: currentAttrs.bold = true
+            case 2: currentAttrs.dim = true
+            case 3: currentAttrs.italic = true
+            case 4: currentAttrs.underline = true
+            case 7: currentAttrs.reverse = true
+            case 9: currentAttrs.strikethrough = true
+            case 22: currentAttrs.bold = false; currentAttrs.dim = false
+            case 23: currentAttrs.italic = false
+            case 24: currentAttrs.underline = false
+            case 27: currentAttrs.reverse = false
+            case 29: currentAttrs.strikethrough = false
+            case 30...37: currentAttrs.fg = AnsiPalette.ansi(index: code - 30, bright: false)
+            case 38:
+                if let (color, skip) = parseExtendedColor(params, from: i + 1) {
+                    currentAttrs.fg = color
+                    i += skip
+                }
+            case 39: currentAttrs.fg = CellAttributes.defaultFg
+            case 40...47: currentAttrs.bg = AnsiPalette.ansi(index: code - 40, bright: false)
+            case 48:
+                if let (color, skip) = parseExtendedColor(params, from: i + 1) {
+                    currentAttrs.bg = color
+                    i += skip
+                }
+            case 49: currentAttrs.bg = nil
+            case 90...97: currentAttrs.fg = AnsiPalette.ansi(index: code - 90, bright: true)
+            case 100...107: currentAttrs.bg = AnsiPalette.ansi(index: code - 100, bright: true)
+            default: break
+            }
+            i += 1
+        }
+    }
+
+    private func parseExtendedColor(_ params: [Int], from index: Int) -> (SIMD4<Float>, Int)? {
+        guard index < params.count else { return nil }
+        if params[index] == 5 {
+            guard index + 1 < params.count else { return nil }
+            return (AnsiPalette.color256(params[index + 1]), 2)
+        }
+        if params[index] == 2 {
+            guard index + 3 < params.count else { return nil }
+            return (AnsiPalette.rgb(params[index + 1], params[index + 2], params[index + 3]), 4)
+        }
+        return nil
     }
 
     // MARK: - Private Mode (DEC)
@@ -335,53 +398,56 @@ final class TerminalScreen: @unchecked Sendable {
 
     private func scrollUp() {
         if !useAltScreen {
-            let topLine = String(mainGrid[scrollTop])
-            var end = topLine.endIndex
-            while end > topLine.startIndex && topLine[topLine.index(before: end)] == " " {
-                end = topLine.index(before: end)
+            let topRow = mainGrid[scrollTop]
+            let raw = String(topRow.map(\.char))
+            var end = raw.endIndex
+            while end > raw.startIndex && raw[raw.index(before: end)] == " " {
+                end = raw.index(before: end)
             }
-            scrollback.append(String(topLine[topLine.startIndex..<end]))
+            scrollback.append(String(raw[raw.startIndex..<end]))
             if scrollback.count > maxScrollback { scrollback.removeFirst() }
         }
         for r in scrollTop..<scrollBottom {
             grid[r] = grid[r + 1]
         }
-        grid[scrollBottom] = Array(repeating: " ", count: cols)
+        grid[scrollBottom] = erasedRow()
     }
 
     private func scrollDown() {
         for r in stride(from: scrollBottom, through: scrollTop + 1, by: -1) {
             grid[r] = grid[r - 1]
         }
-        grid[scrollTop] = Array(repeating: " ", count: cols)
+        grid[scrollTop] = erasedRow()
     }
 
     private func eraseDisplay(_ mode: Int) {
+        let blank = erasedCell()
         switch mode {
         case 0:
             eraseLine(0)
             for r in (cursorRow + 1)...scrollBottom where r < rows {
-                grid[r] = Array(repeating: " ", count: cols)
+                grid[r] = Array(repeating: blank, count: cols)
             }
         case 1:
             for r in scrollTop..<cursorRow where r >= 0 {
-                grid[r] = Array(repeating: " ", count: cols)
+                grid[r] = Array(repeating: blank, count: cols)
             }
-            for c in 0...min(cursorCol, cols - 1) { grid[cursorRow][c] = " " }
+            for c in 0...min(cursorCol, cols - 1) { grid[cursorRow][c] = blank }
         case 2:
-            for r in 0..<rows { grid[r] = Array(repeating: " ", count: cols) }
+            for r in 0..<rows { grid[r] = Array(repeating: blank, count: cols) }
         case 3:
-            for r in 0..<rows { grid[r] = Array(repeating: " ", count: cols) }
+            for r in 0..<rows { grid[r] = Array(repeating: blank, count: cols) }
             scrollback.removeAll()
         default: break
         }
     }
 
     private func eraseLine(_ mode: Int) {
+        let blank = erasedCell()
         switch mode {
-        case 0: for c in cursorCol..<cols { grid[cursorRow][c] = " " }
-        case 1: for c in 0...min(cursorCol, cols - 1) { grid[cursorRow][c] = " " }
-        case 2: grid[cursorRow] = Array(repeating: " ", count: cols)
+        case 0: for c in cursorCol..<cols { grid[cursorRow][c] = blank }
+        case 1: for c in 0...min(cursorCol, cols - 1) { grid[cursorRow][c] = blank }
+        case 2: grid[cursorRow] = Array(repeating: blank, count: cols)
         default: break
         }
     }
@@ -391,7 +457,7 @@ final class TerminalScreen: @unchecked Sendable {
         for _ in 0..<n {
             if cursorRow <= bottom {
                 grid.remove(at: bottom)
-                grid.insert(Array(repeating: " ", count: cols), at: cursorRow)
+                grid.insert(erasedRow(), at: cursorRow)
             }
         }
     }
@@ -401,21 +467,23 @@ final class TerminalScreen: @unchecked Sendable {
         for _ in 0..<n {
             if cursorRow <= bottom {
                 grid.remove(at: cursorRow)
-                grid.insert(Array(repeating: " ", count: cols), at: bottom)
+                grid.insert(erasedRow(), at: bottom)
             }
         }
     }
 
     private func deleteChars(_ n: Int) {
+        let blank = erasedCell()
         for _ in 0..<n where cursorCol < cols {
             grid[cursorRow].remove(at: cursorCol)
-            grid[cursorRow].append(" ")
+            grid[cursorRow].append(blank)
         }
     }
 
     private func insertChars(_ n: Int) {
+        let blank = erasedCell()
         for _ in 0..<n where cursorCol < cols {
-            grid[cursorRow].insert(" ", at: cursorCol)
+            grid[cursorRow].insert(blank, at: cursorCol)
             if grid[cursorRow].count > cols { grid[cursorRow].removeLast() }
         }
     }
@@ -427,6 +495,7 @@ final class TerminalScreen: @unchecked Sendable {
         mainCursorRow = 0; mainCursorCol = 0
         altCursorRow = 0; altCursorCol = 0
         savedRow = 0; savedCol = 0
+        currentAttrs = .default
         mainGrid = Self.emptyGrid(rows: rows, cols: cols)
         altGrid = Self.emptyGrid(rows: rows, cols: cols)
         scrollback.removeAll()

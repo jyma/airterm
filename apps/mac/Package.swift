@@ -10,7 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AirTerm",
-            path: "AirTerm"
+            path: "AirTerm",
+            resources: [
+                .process("Render/Shaders"),
+            ]
         ),
         .testTarget(
             name: "AirTermTests",

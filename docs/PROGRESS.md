@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 5%）
+**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 30%）
 
 ---
 
@@ -26,25 +26,43 @@
   - `Render/MetalRenderer.swift` — MTKViewDelegate（目前只 clear drawable）
   - `swift build` 通过，`bundle.sh` 打包 `AirTerm.app` 能启动并显示深色窗口
 
+- ✅ **[Step 2] Metal 文本渲染 + 字形图集**
+  - `Render/Shaders/grid.metal` — instanced-quad 顶点 + 覆盖度采样片段着色器，premultiplied alpha 混合
+  - `Render/GlyphAtlas.swift` — 固定栅格 2048² `.r8Unorm` shared-storage 纹理；CoreText `CTLineDraw` rasterize 到 DeviceGray CGContext，按字符 LRU 缓存
+  - `Render/GridLayout.swift` — 通过 CTFont 获取 ascent/descent/leading + `"M"` advance 计算单元格像素尺寸
+  - `Render/MetalRenderer.swift` — 运行时编译 `grid.metal`（`Bundle.module` 加载），维护 pipeline/sampler，每帧构建 instance buffer 并 drawPrimitives（triangleStrip, vertexCount: 4, instanceCount: N）
+  - 字体回落链：`JetBrainsMono-Regular → SFMono-Regular → Menlo-Regular`（JBM 未安装时静默回落 + DebugLog）
+  - `Package.swift` 新增 `resources: [.process("Render/Shaders")]`
+
+- ✅ **[Step 3] PTY → TerminalScreen → Renderer 串联 + 键盘输入**
+  - `Services/TerminalSession.swift`（新）— 聚合 `PTY` + `TerminalScreen`，懒启动（首次 resize 回调时 fork），`start(rows:cols:)` 幂等，再次调用即 resize
+  - `Services/TerminalScreen.swift` — 新增 `snapshot() -> TerminalSnapshot`（grid/cursor/rows/cols 锁内一次性拷贝）
+  - `Render/GlyphAtlas.swift` — slot 0 预填 255 作为 `solid` 条目，供光标/选区/背景块复用
+  - `Render/MetalRenderer.swift` — `session` 弱引用；每帧从 snapshot 读网格，逐非空格 cell 生成 instance；光标以 2px 下划线叠加；`MetalRendererDelegate` 在单元格尺寸已知时回报 rows×cols
+  - `UI/TerminalView.swift` — first responder（`acceptsFirstResponder` + `viewDidMoveToWindow`→`makeFirstResponder`）；`keyDown` 映射：Ctrl+字母→control byte、Option+→ ESC 前缀、Return/Tab/Delete/Esc/箭头/PgUp/PgDn/Home/End 转义序列，其余走 `event.characters`
+  - 验收：App 起来进 `$SHELL`，`echo AIRTERM_WORKS`、`ls /` 能跑；光标下划线位置正确；窗口 resize 走 `TIOCSWINSZ` + SIGWINCH
+
+- ✅ **[Step 3.5] Per-cell 颜色 + 正确字体**
+  - 新增 `Services/Cell.swift` — `Cell { char, attrs }` + `CellAttributes { fg/bg/bold/dim/italic/underline/reverse/strikethrough }` + `AnsiPalette`（8/16/256/24-bit 调色板为 `SIMD4<Float>`，不再走 NSColor）
+  - `Services/TerminalScreen.swift` — grid 类型从 `[[Character]]` 改为 `[[Cell]]`；SGR 参数解析（0/1/2/3/4/7/9/22-29/30-37/38/39/40-47/48/49/90-97/100-107，支持 5/2 扩展色）；写字符时打 `currentAttrs` 标签；erase 操作用 `currentAttrs.bg` 填充（兼容 "\e[41mK" 留红条）；CSI 解析支持冒号分隔符归一化为分号
+  - 删除 `Services/ANSIParser.swift`（v0 走 NSAttributedString 的 dead code）
+  - `Render/MetalRenderer.swift` — 每 cell 双 pass：先 bg（solid slot + 颜色），再 fg/underline/strikethrough；reverse 交换 fg/bg，dim 乘 0.5 系数
+  - `brew install --cask font-jetbrains-mono` 完成，字体链自动命中 JetBrainsMono-Regular（cell 17×37 @2x）
+  - 验收：`printf "\e[31mRED \e[42;30mBG \e[7mREVERSE \e[4mUNDERLINE\e[0m"` 四种效果正确渲染
+
 ---
 
-## 下一步：Phase 1 Step 2 · Metal 文本渲染
+## 下一步：Phase 1 Step 4 · 滚动回溯 + 选区 + 复制粘贴
 
-**目标**：Metal 管线能渲染一行硬编码字符串 `"Hello AirTerm"`。
+**目标**：往上滚看历史、鼠标拖选、⌘C 复制、⌘V 粘贴。
 
-**需要实现的文件**：
-- `Render/GlyphAtlas.swift` — CoreText rasterize 字形到 MTLTexture，LRU 缓存
-- `Render/GridLayout.swift` — 字符坐标 ↔ 屏幕像素坐标转换
-- `Render/Shaders/grid.metal` — Metal shader（实例化 quad 绘制 glyph）
-- 更新 `MetalRenderer.swift` — pipeline state、vertex buffer、draw call
+**需要实现**：
+- `TerminalScreen`：把 scrollback 暴露出来（当前 `snapshot()` 只返回可见视口）；由视图层跟踪滚动偏移
+- `TerminalView`：处理 `scrollWheel` 调整偏移；`mouseDown`/`mouseDragged`/`mouseUp` 以行列坐标构建选区
+- `MetalRenderer`：把选区背景做为第一层（atlas solid 半透明色）先于字符绘制
+- 复制：选区内容拼字符串到 `NSPasteboard.general`；粘贴：读剪贴板写入 PTY（可选支持 bracketed paste `\e[200~…\e[201~`）
 
-**技术要点**：
-- 字体默认 JetBrains Mono 14pt（Retina 下 2x）
-- 字形图集初始尺寸 2048×2048 单页，超出后扩展第二页
-- 每个字符一个 quad，顶点通过 instanced rendering 批量绘制
-- Color palette 从 `Palette` 结构读取（先 hardcode，Phase 2 接入 TOML）
-
-**验收**：App 启动后，窗口左上角显示 `"Hello AirTerm"` 白色文字，清晰无锯齿，无抖动。
+**验收**：能往上滚看历史；拖选一段文字，⌘C 后 ⌘V 到编辑器里内容一致。
 
 ---
 
@@ -53,9 +71,9 @@
 | # | 任务 | 状态 |
 |---|---|---|
 | 1 | App 入口 + Metal 视图骨架 | ✅ 完成 |
-| 2 | Metal 文本渲染 + 字形图集 | ⬜ **下一个** |
-| 3 | PTY → VTParser → TerminalScreen → Renderer 串联 + 键盘输入 | ⬜ |
-| 4 | 滚动回溯、选区、复制粘贴 | ⬜ |
+| 2 | Metal 文本渲染 + 字形图集 | ✅ 完成 |
+| 3 | PTY → VTParser → TerminalScreen → Renderer 串联 + 键盘输入 | ✅ 完成 |
+| 4 | 滚动回溯、选区、复制粘贴 | ⬜ **下一个** |
 | 5 | Pane 树数据模型 + NSSplitView 递归 | ⬜ |
 | 6 | Split / focus 快捷键（⌘D、⌘⇧D、⌘[、⌘]） | ⬜ |
 | 7 | Tab 系统（⌘T、⌘1-9） | ⬜ |
@@ -94,11 +112,12 @@ open apps/mac/build/AirTerm.app
 
 ---
 
+## 已确认决策（2026-04-22）
+
+- **配置文件位置**：`~/.config/airterm/config.toml`（unix 风）
+- **品牌视觉**：暂不做 Logo / icon / 官网视觉；`design/airterm.pen` 搁置
+- **默认字体**：JetBrains Mono 14pt（Phase 1 先硬编码，自定义字体路径后续再开）
+
 ## 待澄清问题（下次开工前需回答）
 
-以下是上一轮 roadmap 讨论中未明确的点，下次继续时建议先定一下：
-
 1. **时间投入**：全职（按 11 周预期）还是业余项目（3-6 个月）？影响每阶段打磨深度。
-2. **品牌视觉**：Logo / icon / 官网视觉是否现在就做？Pencil 设计稿 `design/airterm.pen` 是否还适用？
-3. **Phase 1 Step 2 字体选择**：JetBrains Mono 是否最终选型？是否需要同时支持自定义字体文件路径？
-4. **配置文件位置**：`~/.config/airterm/config.toml` 还是 `~/Library/Application Support/AirTerm/config.toml`？（前者 unix 风，后者 Apple 惯例）
