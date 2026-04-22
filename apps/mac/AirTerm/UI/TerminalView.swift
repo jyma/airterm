@@ -15,6 +15,13 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     /// track which pane is currently receiving split / close commands.
     var onActivated: (() -> Void)?
 
+    /// Drawn as the pane border; toggled by the window on focus changes.
+    var isActive: Bool = false {
+        didSet { layer?.borderColor = (isActive ? Palette.accent : Palette.background).cgColor }
+    }
+
+    private static let borderInset: CGFloat = 2
+
     // Scroll state: when `followTail` is true the renderer draws the live tail;
     // otherwise `savedTopDocLine` anchors the viewport to a fixed doc row.
     private var followTail = true
@@ -29,10 +36,16 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         guard let device = MTLCreateSystemDefaultDevice() else {
             fatalError("Metal is not supported on this device.")
         }
-        self.metalView = MTKView(frame: frameRect, device: device)
+        let inset = Self.borderInset
+        let metalFrame = frameRect.insetBy(dx: inset, dy: inset)
+        self.metalView = MTKView(frame: metalFrame, device: device)
         self.renderer = MetalRenderer(device: device)
         self.session = TerminalSession(rows: 24, cols: 80)
         super.init(frame: frameRect)
+
+        wantsLayer = true
+        layer?.borderWidth = inset
+        layer?.borderColor = Palette.background.cgColor
 
         metalView.autoresizingMask = [.width, .height]
         metalView.clearColor = MTLClearColor(red: 0.118, green: 0.118, blue: 0.180, alpha: 1.0)
@@ -105,11 +118,14 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     private func docPoint(from event: NSEvent) -> DocPoint? {
         guard let cellSize = renderer.cellSize, let scale = window?.backingScaleFactor, scale > 0 else { return nil }
         let snap = renderer.latestSnapshot ?? session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
+        // self is flipped, so (0,0) is the top-left of the pane. Subtract the
+        // border inset to line up with the MTKView's drawing origin.
+        let inset = Self.borderInset
         let location = convert(event.locationInWindow, from: nil)
         let cellPtW = cellSize.width / scale
         let cellPtH = cellSize.height / scale
-        let col = max(0, min(snap.cols - 1, Int(location.x / cellPtW)))
-        let vpRow = max(0, min(snap.rows - 1, Int(location.y / cellPtH)))
+        let col = max(0, min(snap.cols - 1, Int((location.x - inset) / cellPtW)))
+        let vpRow = max(0, min(snap.rows - 1, Int((location.y - inset) / cellPtH)))
         return DocPoint(docRow: snap.topDocLine + vpRow, col: col)
     }
 

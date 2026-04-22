@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 65%）
+**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 80%）
 
 ---
 
@@ -42,6 +42,14 @@
   - `UI/TerminalView.swift` — first responder（`acceptsFirstResponder` + `viewDidMoveToWindow`→`makeFirstResponder`）；`keyDown` 映射：Ctrl+字母→control byte、Option+→ ESC 前缀、Return/Tab/Delete/Esc/箭头/PgUp/PgDn/Home/End 转义序列，其余走 `event.characters`
   - 验收：App 起来进 `$SHELL`，`echo AIRTERM_WORKS`、`ls /` 能跑；光标下划线位置正确；窗口 resize 走 `TIOCSWINSZ` + SIGWINCH
 
+- ✅ **[Step 6] Focus 切换快捷键 + 活动 pane 视觉提示**
+  - `UI/TerminalView.swift` — MTKView 缩进 2px；TerminalView 自己的 layer 做 2px border，`isActive` 在 active ↔ inactive 间切 `Palette.accent` / `Palette.background`（inactive 时融进窗口背景看不见）；鼠标 `docPoint` 坐标换算减掉 border inset
+  - `UI/TerminalWindow.swift` — `activeTerminalView` didSet 自动翻转新旧 pane 的 `isActive`；`cycleFocus(forward:)` 按 `rootPane.leaves` 顺序前后循环；`moveFocus(_:)` 用窗口坐标几何距离找指定方向的最近邻（`directionalDistance` 主轴距离 + 跨轴偏移 0.5 权重）
+  - `UI/TerminalWindow.swift` — `FocusDirection` + 6 个 `@objc` 菜单响应器：`focusNext/PreviousPane:`, `focusPane{Left,Right,Up,Down}:`
+  - `App/AppDelegate.swift` — View 菜单加 Previous Pane (⌘[) / Next Pane (⌘]) 以及 Select Pane Left/Right/Up/Down (⌥⌘Arrow)
+  - `UI/TerminalWindow.swift` — `Palette.accent` 取 Catppuccin Mocha Blue (#89B4FA)
+  - 验收：三 pane 布局下 ⌘]/⌘[ 能按树序循环焦点，⌥⌘↑↓←→ 按几何方向选最近邻 pane；活动 pane 有明显蓝框，inactive pane 边框融进窗口背景
+
 - ✅ **[Step 5] Pane 树 + NSSplitView 递归**
   - `UI/Pane.swift`（新）— 引用类型树节点；`leaf(TerminalView)` 或 `split(orientation, children)`；`leaves` 深度遍历；`parent` 弱引用防环
   - `UI/PaneContainerView.swift`（新）— 从 `Pane` 根递归 build NSSplitView；rebuild 后 `layoutSubtreeIfNeeded` + `distributeEvenly` 把 divider 按子数均分
@@ -67,16 +75,18 @@
 
 ---
 
-## 下一步：Phase 1 Step 6 · 焦点快捷键 + 活动 pane 视觉提示
+## 下一步：Phase 1 Step 7 · Tab 系统（⌘T、⌘1-9）
 
-**目标**：键盘快速切换活动 pane，活动 pane 有可见的高亮边/指示。
+**目标**：一个 window 能开多个 tab，每个 tab 是独立的 PaneTree。
 
 **需要实现**：
-- ⌘[/⌘] 或 ⌥⌘Arrow 在 pane 之间切焦点（几何最近的邻居；按 leaves 的 frame 做命中）
-- 活动 pane 有 1–2px 边框或微妙色差（最简：给 MTKView 设 1px borderLayer，inactive 时清掉）
-- `TerminalWindow` 新增 `focusNeighbor(direction:)` 方法，实现 Pane tree + 屏幕坐标结合的邻居查找
+- `Tab` 类型（或者复用 macOS `NSWindow tabbing`）：`tab` = `{rootPane, activeLeaf, title}`
+- 方案 A：利用 `NSWindow.tabbingMode = .preferred`，每个 tab 是一个窗口（macOS 自动合并成 tab 栏）。优点是原生、⌘⇧[/⌘⇧] 切 tab 免费；缺点是每个"tab"都是完整 window，资源略重
+- 方案 B：自己画 tab 栏 + 切换 PaneContainerView
+- 建议：先走方案 A，用 `NSWindow.tabbingMode + NSWindowController`，⌘T 用 `newWindowForTab:`；⌘1-9 自己接
+- `TerminalWindow` 加 `@objc func selectTab<n>(_:)` 给 ⌘1-9
 
-**验收**：多 pane 下快捷键能切焦点；看得出哪个 pane 是活动的；关 pane 后焦点自动落到留存的某一个。
+**验收**：⌘T 开新 tab，各 tab 互相独立；⌘1-9 跳指定 tab；⌘W 关当前 pane，活动 pane 是 root leaf 则关 tab（不关窗）。
 
 ---
 
@@ -89,8 +99,8 @@
 | 3 | PTY → VTParser → TerminalScreen → Renderer 串联 + 键盘输入 | ✅ 完成 |
 | 4 | 滚动回溯、选区、复制粘贴 | ✅ 完成 |
 | 5 | Pane 树数据模型 + NSSplitView 递归 | ✅ 完成（含 ⌘D/⌘⇧D 分屏） |
-| 6 | Focus 切换快捷键 + 活动 pane 视觉提示 | ⬜ **下一个** |
-| 7 | Tab 系统（⌘T、⌘1-9） | ⬜ |
+| 6 | Focus 切换快捷键 + 活动 pane 视觉提示 | ✅ 完成 |
+| 7 | Tab 系统（⌘T、⌘1-9） | ⬜ **下一个** |
 
 **Phase 1 验收**：`vim README.md` 正常；`cat /dev/urandom \| head -c 10M \| hexdump` 帧率稳定 120fps；竖切屏幕同时运行多个 shell。
 

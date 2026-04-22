@@ -73,6 +73,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
+        let viewMenuItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+
+        let nextPane = viewMenu.addItem(
+            withTitle: "Next Pane",
+            action: #selector(TerminalWindow.focusNextPane(_:)),
+            keyEquivalent: "]"
+        )
+        nextPane.keyEquivalentModifierMask = [.command]
+
+        let prevPane = viewMenu.addItem(
+            withTitle: "Previous Pane",
+            action: #selector(TerminalWindow.focusPreviousPane(_:)),
+            keyEquivalent: "["
+        )
+        prevPane.keyEquivalentModifierMask = [.command]
+
+        viewMenu.addItem(NSMenuItem.separator())
+
+        let arrowMods: NSEvent.ModifierFlags = [.command, .option]
+        let upKey = String(Unicode.Scalar(NSUpArrowFunctionKey)!)
+        let downKey = String(Unicode.Scalar(NSDownArrowFunctionKey)!)
+        let leftKey = String(Unicode.Scalar(NSLeftArrowFunctionKey)!)
+        let rightKey = String(Unicode.Scalar(NSRightArrowFunctionKey)!)
+
+        let left = viewMenu.addItem(
+            withTitle: "Select Pane Left",
+            action: #selector(TerminalWindow.focusPaneLeft(_:)),
+            keyEquivalent: leftKey
+        )
+        left.keyEquivalentModifierMask = arrowMods
+
+        let right = viewMenu.addItem(
+            withTitle: "Select Pane Right",
+            action: #selector(TerminalWindow.focusPaneRight(_:)),
+            keyEquivalent: rightKey
+        )
+        right.keyEquivalentModifierMask = arrowMods
+
+        let up = viewMenu.addItem(
+            withTitle: "Select Pane Up",
+            action: #selector(TerminalWindow.focusPaneUp(_:)),
+            keyEquivalent: upKey
+        )
+        up.keyEquivalentModifierMask = arrowMods
+
+        let down = viewMenu.addItem(
+            withTitle: "Select Pane Down",
+            action: #selector(TerminalWindow.focusPaneDown(_:)),
+            keyEquivalent: downKey
+        )
+        down.keyEquivalentModifierMask = arrowMods
+
+        viewMenuItem.submenu = viewMenu
+        mainMenu.addItem(viewMenuItem)
+
         NSApp.mainMenu = mainMenu
     }
 }
