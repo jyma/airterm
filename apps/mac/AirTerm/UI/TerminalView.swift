@@ -4,10 +4,22 @@ import MetalKit
 /// Hosts the Metal-backed terminal surface and owns the PTY-driven session.
 /// Keyboard input from the user is translated into bytes and written to the PTY;
 /// drawable resizes propagate to both the session and the VT state machine.
-final class TerminalView: NSView, MetalRendererDelegate {
+/// Mouse drags produce selections, the scroll wheel walks scrollback, and
+/// ⌘C/⌘V ferry text in and out of `NSPasteboard.general`.
+final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     private let metalView: MTKView
     private let renderer: MetalRenderer
     let session: TerminalSession
+
+    // Scroll state: when `followTail` is true the renderer draws the live tail;
+    // otherwise `savedTopDocLine` anchors the viewport to a fixed doc row.
+    private var followTail = true
+    private var savedTopDocLine = 0
+    private var scrollAccumulator: CGFloat = 0
+
+    // Selection state.
+    private var selection: Selection?
+    private var mouseAnchor: DocPoint?
 
     override init(frame frameRect: NSRect) {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -15,7 +27,7 @@ final class TerminalView: NSView, MetalRendererDelegate {
         }
         self.metalView = MTKView(frame: frameRect, device: device)
         self.renderer = MetalRenderer(device: device)
-        self.session = TerminalSession(rows: 50, cols: 120)
+        self.session = TerminalSession(rows: 24, cols: 80)
         super.init(frame: frameRect)
 
         metalView.autoresizingMask = [.width, .height]
@@ -29,9 +41,6 @@ final class TerminalView: NSView, MetalRendererDelegate {
 
         renderer.session = session
         renderer.delegate = self
-
-        // Shell is started from the first renderer resize callback so the PTY
-        // opens with the real cell-count that matches the window.
     }
 
     required init?(coder: NSCoder) {
@@ -39,6 +48,7 @@ final class TerminalView: NSView, MetalRendererDelegate {
     }
 
     override var acceptsFirstResponder: Bool { true }
+    override var isFlipped: Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -51,9 +61,112 @@ final class TerminalView: NSView, MetalRendererDelegate {
         session.start(rows: UInt16(rows), cols: UInt16(cols))
     }
 
+    // MARK: - Scroll
+
+    override func scrollWheel(with event: NSEvent) {
+        guard let cellSize = renderer.cellSize, let scale = window?.backingScaleFactor, scale > 0 else { return }
+        let cellHeightPoints = cellSize.height / scale
+
+        scrollAccumulator += event.scrollingDeltaY
+        let rowsDelta = Int((scrollAccumulator / cellHeightPoints).rounded(.towardZero))
+        guard rowsDelta != 0 else { return }
+        scrollAccumulator -= CGFloat(rowsDelta) * cellHeightPoints
+
+        // Positive deltaY on macOS natural-scroll = content pulled DOWN = show older.
+        applyScroll(rowDelta: -rowsDelta)
+    }
+
+    private func applyScroll(rowDelta: Int) {
+        let snap = session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
+        let tailTop = snap.scrollbackCount
+        let newTop = max(0, min(tailTop, snap.topDocLine + rowDelta))
+        if newTop >= tailTop {
+            followTail = true
+        } else {
+            followTail = false
+            savedTopDocLine = newTop
+        }
+        renderer.scrollTopDocLine = followTail ? nil : savedTopDocLine
+    }
+
+    private func jumpToTail() {
+        followTail = true
+        scrollAccumulator = 0
+        renderer.scrollTopDocLine = nil
+    }
+
+    // MARK: - Mouse selection
+
+    private func docPoint(from event: NSEvent) -> DocPoint? {
+        guard let cellSize = renderer.cellSize, let scale = window?.backingScaleFactor, scale > 0 else { return nil }
+        let snap = renderer.latestSnapshot ?? session.snapshot(topDocLine: followTail ? nil : savedTopDocLine)
+        let location = convert(event.locationInWindow, from: nil)
+        let cellPtW = cellSize.width / scale
+        let cellPtH = cellSize.height / scale
+        let col = max(0, min(snap.cols - 1, Int(location.x / cellPtW)))
+        let vpRow = max(0, min(snap.rows - 1, Int(location.y / cellPtH)))
+        return DocPoint(docRow: snap.topDocLine + vpRow, col: col)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let point = docPoint(from: event) else { return }
+        mouseAnchor = point
+        selection = nil
+        renderer.selection = nil
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let anchor = mouseAnchor, let head = docPoint(from: event) else { return }
+        let sel = Selection(anchor: anchor, head: head)
+        selection = sel
+        renderer.selection = sel
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        // If it was a plain click with no drag, drop the empty selection.
+        if let sel = selection, sel.anchor == sel.head {
+            selection = nil
+            renderer.selection = nil
+        }
+        mouseAnchor = nil
+    }
+
+    // MARK: - Copy / Paste
+
+    @objc func copy(_ sender: Any?) {
+        guard let sel = selection else { return }
+        let (start, end) = sel.normalized
+        let text = session.textInRange(from: start, to: end)
+        guard !text.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    @objc func paste(_ sender: Any?) {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
+        // Newlines in pasted text should become CR so the shell sees them as Enter.
+        let normalised = text.replacingOccurrences(of: "\r\n", with: "\r")
+            .replacingOccurrences(of: "\n", with: "\r")
+        session.send(normalised)
+        jumpToTail()
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(copy(_:)): return selection != nil
+        case #selector(paste(_:)): return NSPasteboard.general.string(forType: .string) != nil
+        default: return true
+        }
+    }
+
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
+        // Typing jumps back to live view; a scrolled-back user expects their
+        // keystrokes to land on the prompt they can't currently see.
+        jumpToTail()
+
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         // Ctrl+letter: map A..Z / @..~ to control codes 0x00..0x1F

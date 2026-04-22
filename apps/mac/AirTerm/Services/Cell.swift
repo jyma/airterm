@@ -35,6 +35,40 @@ struct Cell: Equatable {
     static let empty = Cell(char: " ", attrs: .default)
 }
 
+/// Position inside the "document" = scrollback lines followed by the live grid.
+/// Survives scroll / new output because it's anchored in absolute coordinates.
+struct DocPoint: Equatable, Hashable {
+    var docRow: Int
+    var col: Int
+
+    static func < (lhs: DocPoint, rhs: DocPoint) -> Bool {
+        lhs.docRow != rhs.docRow ? lhs.docRow < rhs.docRow : lhs.col < rhs.col
+    }
+
+    static func <= (lhs: DocPoint, rhs: DocPoint) -> Bool {
+        lhs == rhs || lhs < rhs
+    }
+}
+
+/// A continuous selection spanning (anchor -> head). `anchor` is wherever the
+/// mouse started; `head` tracks the current position.
+struct Selection: Equatable {
+    var anchor: DocPoint
+    var head: DocPoint
+
+    var normalized: (start: DocPoint, end: DocPoint) {
+        anchor <= head ? (anchor, head) : (head, anchor)
+    }
+
+    func contains(docRow: Int, col: Int) -> Bool {
+        let (start, end) = normalized
+        if docRow < start.docRow || docRow > end.docRow { return false }
+        let startCol = (docRow == start.docRow) ? start.col : 0
+        let endCol = (docRow == end.docRow) ? end.col : Int.max
+        return col >= startCol && col <= endCol
+    }
+}
+
 /// xterm-compatible ANSI palette. Returns SIMD colors so they can flow directly
 /// into the Metal renderer's instance buffer.
 enum AnsiPalette {

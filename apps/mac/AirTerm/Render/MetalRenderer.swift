@@ -30,6 +30,10 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     weak var session: TerminalSession?
     weak var delegate: MetalRendererDelegate?
 
+    /// nil = live tail; non-nil = scrolled-back top-of-viewport doc row.
+    var scrollTopDocLine: Int?
+    var selection: Selection?
+
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLRenderPipelineState
@@ -39,9 +43,11 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private let pointSize: CGFloat = 14
 
     private let cursorColor = SIMD4<Float>(0.85, 0.85, 0.90, 1.0)
+    private let selectionColor = SIMD4<Float>(0.25, 0.45, 0.75, 0.55)
 
     private var lastReportedRows: Int = 0
     private var lastReportedCols: Int = 0
+    private(set) var latestSnapshot: TerminalSnapshot?
 
     init(device: MTLDevice) {
         self.device = device
@@ -127,7 +133,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     }
 
     private func buildInstances(atlas: GlyphAtlas) -> [InstanceData] {
-        guard let snapshot = session?.snapshot() else { return [] }
+        guard let snapshot = session?.snapshot(topDocLine: scrollTopDocLine) else { return [] }
+        latestSnapshot = snapshot
 
         let cellW = Float(atlas.layout.cellWidth)
         let cellH = Float(atlas.layout.cellHeight)
@@ -136,8 +143,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         let solidSize = atlas.solid.atlasSize
         let underlineHeight: Float = 2
 
-        // Two passes so that backgrounds + underlines land under every glyph.
+        // Three passes: backgrounds (SGR bg + selection highlight) then glyphs.
         var backgrounds: [InstanceData] = []
+        var selections: [InstanceData] = []
         var foregrounds: [InstanceData] = []
 
         for row in 0..<min(snapshot.rows, snapshot.grid.count) {
@@ -204,6 +212,27 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             }
         }
 
+        // Selection overlay.
+        if let sel = selection {
+            let (lo, hi) = sel.normalized
+            for row in 0..<snapshot.rows {
+                let docRow = snapshot.topDocLine + row
+                if docRow < lo.docRow || docRow > hi.docRow { continue }
+                let startCol = (docRow == lo.docRow) ? lo.col : 0
+                let endCol = (docRow == hi.docRow) ? hi.col : snapshot.cols - 1
+                guard startCol <= endCol else { continue }
+                for col in startCol...min(endCol, snapshot.cols - 1) where col >= 0 {
+                    selections.append(InstanceData(
+                        cellOriginPx: SIMD2<Float>(Float(col) * cellW, Float(row) * cellH),
+                        atlasOrigin: solidOrigin,
+                        atlasSize: solidSize,
+                        cellSizePx: cellSize,
+                        color: selectionColor
+                    ))
+                }
+            }
+        }
+
         // Cursor underline (2-pixel-tall solid bar at the bottom of the cursor cell).
         if snapshot.cursorRow >= 0 && snapshot.cursorRow < snapshot.rows &&
             snapshot.cursorCol >= 0 && snapshot.cursorCol < snapshot.cols {
@@ -219,7 +248,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             ))
         }
 
-        return backgrounds + foregrounds
+        return backgrounds + selections + foregrounds
     }
 
     private func makeAtlas(view: MTKView) -> GlyphAtlas {

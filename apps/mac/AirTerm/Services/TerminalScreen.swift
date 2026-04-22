@@ -3,10 +3,13 @@ import Foundation
 /// Immutable snapshot of the visible terminal viewport at a moment in time.
 struct TerminalSnapshot {
     let grid: [[Cell]]
-    let cursorRow: Int
+    let cursorRow: Int          // viewport row; may fall outside [0, rows) when scrolled
     let cursorCol: Int
     let rows: Int
     let cols: Int
+    let topDocLine: Int         // doc row of viewport[0]
+    let scrollbackCount: Int
+    let atTail: Bool            // true when viewport hugs the live tail
 }
 
 /// VT100/xterm terminal state machine with alternate screen buffer support.
@@ -118,16 +121,106 @@ final class TerminalScreen: @unchecked Sendable {
         lock.unlock()
     }
 
-    func snapshot() -> TerminalSnapshot {
+    /// Compose the viewport. Pass `nil` (default) for the live tail; pass a
+    /// specific document row to anchor the viewport while scrolled back.
+    func snapshot(topDocLine requested: Int? = nil) -> TerminalSnapshot {
         lock.lock()
         defer { lock.unlock() }
+
+        let g = useAltScreen ? altGrid : mainGrid
+        let sb = useAltScreen ? [] : scrollback
+        let totalLines = sb.count + rows
+        let tailTop = max(0, totalLines - rows)
+
+        let topLine: Int
+        let atTail: Bool
+        if let t = requested {
+            let clamped = max(0, min(t, tailTop))
+            topLine = clamped
+            atTail = clamped == tailTop
+        } else {
+            topLine = tailTop
+            atTail = true
+        }
+
+        var viewport: [[Cell]] = []
+        viewport.reserveCapacity(rows)
+        for r in 0..<rows {
+            let docRow = topLine + r
+            if docRow < sb.count {
+                var row = Array(repeating: Cell.empty, count: cols)
+                var c = 0
+                for ch in sb[docRow] {
+                    if c >= cols { break }
+                    row[c] = Cell(char: ch, attrs: .default)
+                    c += 1
+                }
+                viewport.append(row)
+            } else {
+                let liveRow = docRow - sb.count
+                if liveRow >= 0 && liveRow < g.count {
+                    viewport.append(g[liveRow])
+                } else {
+                    viewport.append(Array(repeating: Cell.empty, count: cols))
+                }
+            }
+        }
+
+        let liveCursorRow = useAltScreen ? altCursorRow : mainCursorRow
+        let liveCursorCol = useAltScreen ? altCursorCol : mainCursorCol
+        let docCursorRow = sb.count + liveCursorRow
         return TerminalSnapshot(
-            grid: useAltScreen ? altGrid : mainGrid,
-            cursorRow: useAltScreen ? altCursorRow : mainCursorRow,
-            cursorCol: useAltScreen ? altCursorCol : mainCursorCol,
+            grid: viewport,
+            cursorRow: docCursorRow - topLine,
+            cursorCol: liveCursorCol,
             rows: rows,
-            cols: cols
+            cols: cols,
+            topDocLine: topLine,
+            scrollbackCount: sb.count,
+            atTail: atTail
         )
+    }
+
+    /// Extract text for a document-row range (inclusive). Trailing spaces on
+    /// each intermediate row are trimmed, matching typical copy-terminal behaviour.
+    func textInRange(from start: DocPoint, to end: DocPoint) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let (lo, hi) = start <= end ? (start, end) : (end, start)
+        let g = useAltScreen ? altGrid : mainGrid
+        let sb = useAltScreen ? [] : scrollback
+
+        var out = ""
+        for row in lo.docRow...hi.docRow {
+            let startCol = (row == lo.docRow) ? lo.col : 0
+            let endCol = (row == hi.docRow) ? hi.col : cols - 1
+
+            var line = ""
+            if row < sb.count {
+                let chars = Array(sb[row])
+                let s = max(0, min(startCol, chars.count))
+                let e = max(s, min(endCol + 1, chars.count))
+                line = String(chars[s..<e])
+            } else {
+                let liveRow = row - sb.count
+                if liveRow >= 0 && liveRow < g.count {
+                    let cells = g[liveRow]
+                    let s = max(0, min(startCol, cells.count))
+                    let e = max(s, min(endCol + 1, cells.count))
+                    line = String(cells[s..<e].map { $0.char })
+                }
+            }
+
+            if row != hi.docRow {
+                while line.last == " " { line.removeLast() }
+                out.append(line)
+                out.append("\n")
+            } else {
+                out.append(line)
+            }
+        }
+        return out
     }
 
     func resize(newRows: Int, newCols: Int) {

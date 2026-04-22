@@ -54,8 +54,12 @@ final class TerminalSession {
         screen.resize(newRows: Int(rows), newCols: Int(cols))
     }
 
-    func snapshot() -> TerminalSnapshot {
-        screen.snapshot()
+    func snapshot(topDocLine: Int? = nil) -> TerminalSnapshot {
+        screen.snapshot(topDocLine: topDocLine)
+    }
+
+    func textInRange(from start: DocPoint, to end: DocPoint) -> String {
+        screen.textInRange(from: start, to: end)
     }
 
     func stop() {

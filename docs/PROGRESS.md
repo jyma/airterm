@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-22
 **当前分支**: `redesign`（v1 GA 时改名为 `main`）
-**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 30%）
+**当前阶段**: Phase 1 · Mac 终端引擎 MVP（约完成 45%）
 
 ---
 
@@ -42,6 +42,13 @@
   - `UI/TerminalView.swift` — first responder（`acceptsFirstResponder` + `viewDidMoveToWindow`→`makeFirstResponder`）；`keyDown` 映射：Ctrl+字母→control byte、Option+→ ESC 前缀、Return/Tab/Delete/Esc/箭头/PgUp/PgDn/Home/End 转义序列，其余走 `event.characters`
   - 验收：App 起来进 `$SHELL`，`echo AIRTERM_WORKS`、`ls /` 能跑；光标下划线位置正确；窗口 resize 走 `TIOCSWINSZ` + SIGWINCH
 
+- ✅ **[Step 4] 滚动回溯 + 鼠标选区 + 复制粘贴**
+  - `Services/Cell.swift` — 新增 `DocPoint{docRow, col}` + `Selection{anchor, head}`，`normalized` 规范化起止点
+  - `Services/TerminalScreen.swift` — `snapshot(topDocLine:)` 把 scrollback + live grid 拼成固定大小的视口（`topDocLine=nil` 即 tail 跟随）；新增 `textInRange(from:to:)` 返回选区文本（行末空格自动去除）；TerminalSnapshot 加 `topDocLine/scrollbackCount/atTail`
+  - `Render/MetalRenderer.swift` — `scrollTopDocLine`、`selection` 属性；三 pass 叠层（bg → 选区高亮 → glyph/underline/strikethrough）；`latestSnapshot` 供 view 做坐标换算
+  - `UI/TerminalView.swift` — `isFlipped=true`；`scrollWheel` 把 `scrollingDeltaY` 按 cell 高度累加换行；鼠标 down/dragged/up 维护 `Selection`；`copy:` / `paste:` / `validateMenuItem:` 接 `NSPasteboard.general`；keyDown 一触发就 `jumpToTail()`（输入回到最新）；粘贴时把 `\r\n` / `\n` 归一化为 `\r`
+  - 验收：输出 60 行，滚轮上下走；拖拽产生蓝色选区（0.25/0.45/0.75/0.55）；⌘C 写入 pasteboard；⌘V 从 pasteboard 读入并发给 PTY
+
 - ✅ **[Step 3.5] Per-cell 颜色 + 正确字体**
   - 新增 `Services/Cell.swift` — `Cell { char, attrs }` + `CellAttributes { fg/bg/bold/dim/italic/underline/reverse/strikethrough }` + `AnsiPalette`（8/16/256/24-bit 调色板为 `SIMD4<Float>`，不再走 NSColor）
   - `Services/TerminalScreen.swift` — grid 类型从 `[[Character]]` 改为 `[[Cell]]`；SGR 参数解析（0/1/2/3/4/7/9/22-29/30-37/38/39/40-47/48/49/90-97/100-107，支持 5/2 扩展色）；写字符时打 `currentAttrs` 标签；erase 操作用 `currentAttrs.bg` 填充（兼容 "\e[41mK" 留红条）；CSI 解析支持冒号分隔符归一化为分号
@@ -52,17 +59,17 @@
 
 ---
 
-## 下一步：Phase 1 Step 4 · 滚动回溯 + 选区 + 复制粘贴
+## 下一步：Phase 1 Step 5 · Pane 树 + NSSplitView 递归
 
-**目标**：往上滚看历史、鼠标拖选、⌘C 复制、⌘V 粘贴。
+**目标**：一个窗口里能横向/纵向切多个 Pane，每个 Pane 有自己独立的 `TerminalSession`。
 
 **需要实现**：
-- `TerminalScreen`：把 scrollback 暴露出来（当前 `snapshot()` 只返回可见视口）；由视图层跟踪滚动偏移
-- `TerminalView`：处理 `scrollWheel` 调整偏移；`mouseDown`/`mouseDragged`/`mouseUp` 以行列坐标构建选区
-- `MetalRenderer`：把选区背景做为第一层（atlas solid 半透明色）先于字符绘制
-- 复制：选区内容拼字符串到 `NSPasteboard.general`；粘贴：读剪贴板写入 PTY（可选支持 bracketed paste `\e[200~…\e[201~`）
+- `PaneNode` 值类型：enum `{leaf(TerminalSession) | horizontal([PaneNode]) | vertical([PaneNode])}`，保留树结构
+- `PaneTreeView`：NSSplitView 嵌套，从 PaneNode 递归构建；每个 leaf 套一个 `TerminalView`
+- focus 管理：窗口追踪 `activePane`，键盘 / 滚动事件只走 active pane
+- Step 6 配合：⌘D 横切 active pane、⌘⇧D 纵切、⌘[/⌘] 切换 focus（现在先把数据结构 + 渲染跑通）
 
-**验收**：能往上滚看历史；拖选一段文字，⌘C 后 ⌘V 到编辑器里内容一致。
+**验收**：命令菜单里手动触发 split，窗口出现分屏，每个 pane 各跑一个 shell，可以分别输入。
 
 ---
 
@@ -73,8 +80,8 @@
 | 1 | App 入口 + Metal 视图骨架 | ✅ 完成 |
 | 2 | Metal 文本渲染 + 字形图集 | ✅ 完成 |
 | 3 | PTY → VTParser → TerminalScreen → Renderer 串联 + 键盘输入 | ✅ 完成 |
-| 4 | 滚动回溯、选区、复制粘贴 | ⬜ **下一个** |
-| 5 | Pane 树数据模型 + NSSplitView 递归 | ⬜ |
+| 4 | 滚动回溯、选区、复制粘贴 | ✅ 完成 |
+| 5 | Pane 树数据模型 + NSSplitView 递归 | ⬜ **下一个** |
 | 6 | Split / focus 快捷键（⌘D、⌘⇧D、⌘[、⌘]） | ⬜ |
 | 7 | Tab 系统（⌘T、⌘1-9） | ⬜ |
 
