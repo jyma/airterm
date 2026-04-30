@@ -15,6 +15,12 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 anyhow = "1"
 dirs = "5"
+# `chrono` minus default-features avoids the (large) unused 'iana-time-zone'
+# dependency and the wasm bindings; we only need `Local::now` + `format`.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# `git2` links against vendored libgit2 to avoid runtime libgit2 mismatches
+# on user machines (homebrew vs Xcode SDK install on different macOS versions).
+git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
 
 [profile.release]
 # AirTerm calls airprompt on every shell prompt, so binary size and startup

@@ -1,7 +1,11 @@
+use super::style;
 use crate::config::TimeModule;
+use chrono::Local;
 
-/// A5-1 stub: time module hides itself by default; real chrono-backed
-/// rendering lands in A5-2 once the chrono dependency is added.
-pub fn render(_cfg: &TimeModule) -> Option<String> {
-    None
+pub fn render(cfg: &TimeModule) -> Option<String> {
+    if cfg.disabled {
+        return None;
+    }
+    let formatted = Local::now().format(&cfg.format).to_string();
+    Some(style::paint(&cfg.style, &formatted))
 }
