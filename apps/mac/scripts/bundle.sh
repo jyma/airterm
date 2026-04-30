@@ -66,6 +66,11 @@ mkdir -p "$APP_DIR/Contents/Resources/bin"
 cp "$AIRPROMPT_DIR/target/release/airprompt" "$APP_DIR/Contents/Resources/bin/airprompt"
 codesign --force --sign - "$APP_DIR/Contents/Resources/bin/airprompt"
 
+# Ship the prompt presets so users can `cp <preset> ~/.config/airterm/prompt.toml`.
+mkdir -p "$APP_DIR/Contents/Resources/airprompt-presets"
+cp "$AIRPROMPT_DIR/presets/"*.toml "$APP_DIR/Contents/Resources/airprompt-presets/"
+cp "$AIRPROMPT_DIR/presets/README.md" "$APP_DIR/Contents/Resources/airprompt-presets/"
+
 # Ad-hoc sign so TCC recognizes it stably
 codesign --force --sign - "$APP_DIR"
 

@@ -1,0 +1,44 @@
+# tokyo-night — low-saturation purple/blue, bracketed segments.
+# Pairs well with the tokyo-night colour theme but reads tasteful against
+# any dark theme.
+#
+# To use: `cp tokyo-night.toml ~/.config/airterm/prompt.toml`
+
+format = [
+    "directory",
+    "git_branch",
+    "git_status",
+    "command_duration",
+    "status",
+]
+
+[directory]
+truncation_length = 3
+style = "blue"
+home_symbol = "~"
+
+[git_branch]
+symbol = "[ "
+style = "purple"
+
+[git_status]
+modified = "*"
+ahead = "⇡"
+behind = "⇣"
+style = "yellow"
+
+[command_duration]
+min_time_ms = 1500
+style = "yellow"
+
+[status]
+style = "red"
+
+[time]
+disabled = true
+
+[character]
+success = "❯"
+error = "❯"
+success_style = "cyan"
+error_style = "red"

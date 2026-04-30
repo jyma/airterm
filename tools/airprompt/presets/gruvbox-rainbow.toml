@@ -1,0 +1,47 @@
+# gruvbox-rainbow — warm rainbow segments, distinct per module.
+# Inspired by Starship's gruvbox-rainbow preset; pairs naturally with the
+# gruvbox colour themes but the warm hues hold up on any dark background.
+#
+# To use: `cp gruvbox-rainbow.toml ~/.config/airterm/prompt.toml`
+
+format = [
+    "directory",
+    "git_branch",
+    "git_status",
+    "command_duration",
+    "status",
+    "time",
+]
+
+[directory]
+truncation_length = 4
+style = "bold yellow"
+home_symbol = " "
+
+[git_branch]
+symbol = " "
+style = "bold red"
+
+[git_status]
+modified = "● "
+ahead = "↑"
+behind = "↓"
+style = "green"
+
+[command_duration]
+min_time_ms = 1000
+style = "yellow"
+
+[status]
+style = "bold red"
+
+[time]
+disabled = false
+format = "%H:%M"
+style = "purple"
+
+[character]
+success = "❯"
+error = "❯"
+success_style = "bold purple"
+error_style = "bold red"

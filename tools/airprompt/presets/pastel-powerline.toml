@@ -1,0 +1,46 @@
+# pastel-powerline — strong contrast colour blocks, dense, powerline-style.
+# Inspired by Starship's pastel-powerline preset.
+#
+# To use: `cp pastel-powerline.toml ~/.config/airterm/prompt.toml`
+# Requires a Nerd Font (AirTerm bundles JetBrainsMono Nerd Font Mono).
+
+format = [
+    "directory",
+    "git_branch",
+    "git_status",
+    "command_duration",
+    "status",
+]
+
+[directory]
+truncation_length = 3
+style = "bold blue"
+home_symbol = " ~"
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+modified = "*"
+ahead = "⇡"
+behind = "⇣"
+style = "bold yellow"
+
+[command_duration]
+min_time_ms = 2000
+style = "bold yellow"
+
+[status]
+style = "bold red"
+
+[time]
+disabled = true
+format = "%H:%M"
+style = "white"
+
+[character]
+success = "❯"
+error = "❯"
+success_style = "bold green"
+error_style = "bold red"

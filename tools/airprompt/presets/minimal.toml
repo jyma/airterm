@@ -1,0 +1,44 @@
+# minimal — plain text, no Nerd Font icons, single accent colour.
+# For users who run airprompt outside AirTerm (e.g. Terminal.app, ssh) or
+# simply prefer a quieter prompt. No icons means no surprise tofu.
+#
+# To use: `cp minimal.toml ~/.config/airterm/prompt.toml`
+
+format = [
+    "directory",
+    "git_branch",
+    "git_status",
+    "command_duration",
+    "status",
+]
+
+[directory]
+truncation_length = 3
+style = ""
+home_symbol = "~"
+
+[git_branch]
+symbol = ""
+style = ""
+
+[git_status]
+modified = "*"
+ahead = "+"
+behind = "-"
+style = ""
+
+[command_duration]
+min_time_ms = 5000
+style = ""
+
+[status]
+style = ""
+
+[time]
+disabled = true
+
+[character]
+success = "$"
+error = "$"
+success_style = ""
+error_style = ""
