@@ -22,6 +22,14 @@ final class PairingWindow: NSPanel {
     private let serverLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton(title: "Close", target: nil, action: nil)
     private var configToken: UUID?
+    /// WS connection opened after /api/pair/init succeeds. Listens for the
+    /// server's `pair_completed` notification and mutates the panel from
+    /// "Waiting" → "Paired with <phone>!". Torn down on panel close so we
+    /// don't leak connections per pair attempt.
+    private var relay: RelayClient?
+    /// Snapshot of the pair-init result so the WS-pair handler can format
+    /// status messages without re-reading the panel's UI labels.
+    private var lastPairInfo: PairInfo?
 
     init(pairingService: PairingService) {
         self.pairingService = pairingService
@@ -46,11 +54,21 @@ final class PairingWindow: NSPanel {
 
     deinit {
         if let token = configToken { ConfigStore.shared.unsubscribe(token) }
+        // Tear down the WS via direct disconnect rather than `teardownRelay()`
+        // so we don't touch UI labels (`lastPairInfo = nil` is intentional
+        // there, but isn't necessary here since the panel is going away).
+        relay?.disconnect()
+        relay = nil
     }
 
-    /// Kicks off the pair-init network call, then renders the QR. Called
-    /// from the menu action just before `makeKeyAndOrderFront(nil)`.
+    /// Kicks off the pair-init network call, renders the QR, and opens
+    /// the WS connection that listens for the server's `pair_completed`
+    /// notification. Called from the menu action just before
+    /// `makeKeyAndOrderFront(nil)`.
     func startPairing() {
+        // Re-entrant: closing & reopening the panel restarts pairing
+        // cleanly, including any stale WS from a prior attempt.
+        teardownRelay()
         statusLabel.stringValue = "Requesting pair code…"
         Task { [weak self] in
             do {
@@ -59,13 +77,70 @@ final class PairingWindow: NSPanel {
                 let qr = self.pairingService.generateQRPayload(pairCode: info.pairCode)
                 let json = (try? qr.encodedJSON()) ?? ""
                 await MainActor.run { [weak self] in
-                    self?.populateQR(json: json, pairCode: info.pairCode)
+                    guard let self else { return }
+                    self.lastPairInfo = info
+                    self.populateQR(json: json, pairCode: info.pairCode)
+                    self.connectRelay(with: info.token)
                 }
             } catch {
                 await MainActor.run { [weak self] in
                     self?.statusLabel.stringValue = "Failed: \(error.localizedDescription)"
                 }
             }
+        }
+    }
+
+    /// Opens the WS to the relay using the JWT we just received and
+    /// installs a handler that watches for the `pair_completed`
+    /// notification. Connection state changes drive the visible status
+    /// line so the user knows whether they're actually online.
+    private func connectRelay(with token: String) {
+        let client = RelayClient(
+            serverURL: pairingService.relayServerURL,
+            token: token,
+            deviceId: pairingService.deviceId,
+            role: "mac"
+        )
+        client.onMessage = { [weak self] message in
+            DispatchQueue.main.async { self?.handleRelayMessage(message) }
+        }
+        client.onStateChange = { [weak self] state in
+            DispatchQueue.main.async { self?.handleRelayState(state) }
+        }
+        relay = client
+        client.connect()
+    }
+
+    private func teardownRelay() {
+        relay?.disconnect()
+        relay = nil
+        lastPairInfo = nil
+    }
+
+    private func handleRelayState(_ state: RelayClient.State) {
+        // Don't override the post-pair "Paired with X" message if we
+        // happen to flap to disconnected after the notification arrived.
+        if statusLabel.stringValue.hasPrefix("Paired with") { return }
+        switch state {
+        case .disconnected:
+            statusLabel.stringValue = "Disconnected — retrying…"
+        case .connecting:
+            statusLabel.stringValue = "Opening relay channel…"
+        case .connected:
+            statusLabel.stringValue = "Waiting for phone…"
+        }
+    }
+
+    private func handleRelayMessage(_ message: [String: Any]) {
+        guard let type = message["type"] as? String else { return }
+        switch type {
+        case "pair_completed":
+            let phoneName = (message["phoneName"] as? String) ?? "phone"
+            statusLabel.stringValue = "Paired with \(phoneName)!"
+            helperLabel.stringValue = "You can close this panel."
+            closeButton.title = "Done"
+        default:
+            break
         }
     }
 
@@ -148,6 +223,7 @@ final class PairingWindow: NSPanel {
     }
 
     @objc private func closeClicked() {
+        teardownRelay()
         orderOut(nil)
     }
 

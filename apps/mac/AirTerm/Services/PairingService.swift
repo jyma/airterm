@@ -33,6 +33,12 @@ final class PairingService: @unchecked Sendable {
     /// the QR payload and uses it as the responder static for IK.
     var macPublicKeyBase64: String { identity.publicKeyBase64 }
 
+    /// The relay base URL the panel uses to open its WS connection.
+    var relayServerURL: String { serverURL }
+
+    /// The stable Mac device id sent on every pair-init / WS handshake.
+    var deviceId: String { macDeviceId }
+
     /// HTTP /api/pair/init. Returns the relay-allocated short pair code,
     /// the Mac JWT token (used to open the WS), and a unix timestamp at
     /// which the pair code expires.
