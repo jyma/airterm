@@ -3,6 +3,7 @@ export {
   deriveSharedSecret,
   encodeKey,
   decodeKey,
+  publicKeyFromPrivate,
   type KeyPair,
 } from './keys.js'
 

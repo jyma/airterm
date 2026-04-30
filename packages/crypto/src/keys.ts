@@ -30,3 +30,13 @@ export function encodeKey(key: Uint8Array): string {
 export function decodeKey(encoded: string): Uint8Array {
   return new Uint8Array(Buffer.from(encoded, 'base64'))
 }
+
+/**
+ * Recover the X25519 public key from a stored 32-byte private key. Used
+ * by the web phone-identity loader so we never have to persist both
+ * halves in lockstep — re-deriving on load means truncation or partial
+ * writes can't desync them.
+ */
+export function publicKeyFromPrivate(privateKey: Uint8Array): Uint8Array {
+  return x25519.getPublicKey(privateKey)
+}
