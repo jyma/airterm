@@ -1,7 +1,12 @@
 import type { SequencedMessage, RelayEnvelope } from '@airterm/protocol'
 import { createRelayEnvelope } from '@airterm/protocol'
-import type { BusinessMessage } from '@airterm/protocol'
 import type { CryptoLayer } from './crypto-layer.js'
+
+// Opaque business message — the relay never inspects it, and the typed
+// shape is decided by the application layer (Phase 3 signaling frames,
+// later phases: takeover ops). Kept as a local alias here so the lib
+// doesn't tie itself to one application schema.
+export type BusinessMessage = unknown
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 
