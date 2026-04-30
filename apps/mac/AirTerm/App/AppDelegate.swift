@@ -5,6 +5,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pairingWindow: PairingWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Run the Noise IK self-test at launch in DEBUG builds. This catches
+        // any drift between the Swift port and the TS reference (which the
+        // web initiator imports) the moment we start the app, instead of at
+        // first pair attempt where the failure mode is much harder to trace.
+        #if DEBUG
+        if let failure = Noise.runSelfTest() {
+            assertionFailure("Noise self-test failed: \(failure)")
+            DebugLog.log("Noise self-test failed: \(failure)")
+        } else {
+            DebugLog.log("Noise self-test passed")
+        }
+        #endif
+
         // Register bundled fonts before anything tries to resolve them by name.
         BundledFonts.registerAll()
 
