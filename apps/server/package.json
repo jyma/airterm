@@ -10,6 +10,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@airterm/crypto": "workspace:*",
     "@airterm/protocol": "workspace:*",
     "@hono/node-server": "^1.0.0",
     "@journeyapps/sqlcipher": "^5.0.0",

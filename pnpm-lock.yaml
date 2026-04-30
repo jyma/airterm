@@ -32,6 +32,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@airterm/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@airterm/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
