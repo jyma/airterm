@@ -252,11 +252,17 @@ open apps/mac/build/AirTerm.app
   - `pages/PairedPage.tsx`:Mac 名称 / 设备 id / 时间 + Forget 按钮
   - drive-by:修 `ws-client.ts` 旧 `BusinessMessage` 失效 import(改为本地 `type BusinessMessage = unknown`)
   - 5 个新测试通过,`vite build` 干净(240KB / 77KB gzipped)
+- ✅ **P3-3c-i** Mac PairingWindow + QR 渲染(`010ffd4`)
+  - `UI/PairingWindow.swift`:NSPanel 浮窗,主题感知(订阅 ConfigStore);async startPairing 走 `/api/pair/init` → CIQRCodeGenerator 渲染 280pt QR + monospaced 大粗体显示 pair code
+  - `Utils/MacDeviceID.swift`:稳定 per-install UUID(同 KeyStore 的 production caveat,GA 前迁 Keychain)
+  - `App/AppDelegate.swift`:File → Pair New Device 菜单;`AIRTERM_RELAY_URL` env 覆盖,默认 `https://relay.airterm.dev`
 
-**待办**:
-- ⏳ **P3-3b** Mac Noise IK responder + 信令握手驱动(NoiseSession.swift,~200 行;PairingService 加 awaitPairCompleted/handleSignalingFrame/sendOffer/sendIce 接口)
-- ⏳ **P3-4b** Web Noise IK initiator(浏览器 X25519 via WebCrypto + 与 Mac 共享 NoiseSession 算法)
-- ⏳ **P3-5** 端到端联调:Mac 菜单"配对新设备" → QR → 手机扫码 → Noise 握手完成 → 双端"配对成功"
+**Phase 3 MVP 端到端 demo 离齐只差**:
+- ⏳ **P3-3c-ii** Mac WS 连接 + 监听 `pair_completed`(让 PairingWindow 状态更新成"Paired!")
+  - 闭合 demo 路径(无 Noise):Mac File→Pair → 显示 QR → 手机扫 → POST complete → Mac 收 WS 通知 → Both 端显示"配对成功"
+- ⏳ **P3-3b** Mac Noise IK responder + 握手驱动(security 加固,demo 之后)
+- ⏳ **P3-4b** Web Noise IK initiator(WebCrypto X25519,与 Mac 同算法对齐)
+- ⏳ **P3-5** 完整 E2E + Noise:demo 路径上夹一层 Noise IK,SDP/ICE 走 Noise transport
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
