@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-30
 **当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · Phase 3 队列中
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对收官 ✅(代码 + E2E 测试)**
 **下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
 
 ---
@@ -277,7 +277,7 @@ open apps/mac/build/AirTerm.app
 - ✅ **P3-Noise-Wire-Mac** NoisePairResponder + PairingWindow 路由(`022f48e`) — Mac 端在 pair_completed / 收到 stage-1 时 lazy-create responder,跑 readMessageA/writeMessageB,sendRelay 回 phone,只在 Noise 完成后才标记 "Securely paired"(MITM 拿了 JWT 也过不了)
 - ✅ **P3-Noise-Wire-Final** Web pair-flow 整合(`bb34746`) — `runPhonePairFlow(rawQR)` 串起 parseQR / completePair / loadOrCreatePhoneIdentity / createWSClient / NoisePairDriver,30s 安全超时,异常路径 WS 必断;PairPage.tsx 一行调用替代旧的 4 步
 - ✅ **drive-by** `packages/crypto/sas.ts` 改用 @noble/hashes 替代 node:crypto(浏览器构建解锁)
-- ⏳ **P3-5** E2E:跑起 server,真扫码,验证 Noise 握手通过 + transport 加密双向 work(下一刀)
+- ✅ **P3-5** E2E 测试通过(`2e1fd2b`):server 进程内起真 Hono+WS+SQLite,模拟 Mac responder + Phone initiator(都用 @airterm/crypto HandshakeState),走完完整 pair init→complete→WS→Noise IK→双向 transport 加密路径,254ms 完成。**Phase 3 收官** ✅
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
