@@ -271,6 +271,19 @@ struct Command {
             }
         ))
 
+        // Prompt preset switcher: copies the bundled preset TOML over the
+        // user's ~/.config/airterm/prompt.toml. airprompt re-reads its
+        // config on every render, so the next prompt picks up the new style
+        // automatically — no shell restart, no AirTerm reload.
+        for preset in PromptPreset.all {
+            out.append(Command(
+                icon: "\u{f5fd}",  //   preset / chevron-bar
+                title: "Prompt Preset: \(preset.name)",
+                subtitle: preset.subtitle,
+                run: { _ in PromptPreset.apply(preset) }
+            ))
+        }
+
         // Config: open the file in the user's editor. The file watcher in
         // ConfigStore picks up saves automatically — no explicit reload
         // command needed.
@@ -284,5 +297,56 @@ struct Command {
         ))
 
         return out
+    }
+}
+
+/// Static catalogue of prompt presets shipped under
+/// `AirTerm.app/Contents/Resources/airprompt-presets/`. The command palette
+/// surfaces these as "Prompt Preset: <name>" commands so users can switch
+/// styles without ever leaving the keyboard.
+struct PromptPreset {
+    let name: String
+    let subtitle: String
+
+    static let all: [PromptPreset] = [
+        PromptPreset(name: "pastel-powerline",
+                     subtitle: "Bold colour blocks, Nerd Font icons"),
+        PromptPreset(name: "tokyo-night",
+                     subtitle: "Low-saturation purple/blue, bracketed segments"),
+        PromptPreset(name: "gruvbox-rainbow",
+                     subtitle: "Warm rainbow per module, includes clock"),
+        PromptPreset(name: "jetpack",
+                     subtitle: "Compact, 🚀 anchor, bold cyan path"),
+        PromptPreset(name: "minimal",
+                     subtitle: "Plain text, no icons, $ prompt"),
+    ]
+
+    /// Copies the bundled preset over `~/.config/airterm/prompt.toml`. Best-
+    /// effort: failures are logged and surfaced via the status bar's next
+    /// rebuild (the prompt simply stays on the previous style).
+    static func apply(_ preset: PromptPreset) {
+        let bundle = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Resources/airprompt-presets")
+            .appendingPathComponent("\(preset.name).toml")
+        guard FileManager.default.fileExists(atPath: bundle.path) else {
+            DebugLog.log("PromptPreset: bundled \(preset.name).toml not found")
+            return
+        }
+        let dest = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/airterm/prompt.toml")
+        try? FileManager.default.createDirectory(
+            at: dest.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        // Data.write(.atomic) handles both first-time create and overwrite,
+        // and it never leaves a half-written file for airprompt to read
+        // mid-switch.
+        do {
+            let data = try Data(contentsOf: bundle)
+            try data.write(to: dest, options: .atomic)
+            DebugLog.log("PromptPreset: applied \(preset.name)")
+        } catch {
+            DebugLog.log("PromptPreset: copy failed: \(error)")
+        }
     }
 }
