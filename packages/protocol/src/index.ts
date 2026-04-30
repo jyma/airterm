@@ -51,3 +51,30 @@ export {
   encodeSignalingPayload,
   decodeSignalingPayload,
 } from './signaling.js'
+
+export type {
+  CellFrame,
+  CursorFrame,
+  TakeoverFrame,
+  ScreenSnapshotFrame,
+  ScreenDeltaFrame,
+  InputEventFrame,
+  ResizeFrame,
+  PingFrame as TakeoverPingFrame,
+  ByeFrame as TakeoverByeFrame,
+} from './takeover.js'
+
+export {
+  encodeTakeoverFrame,
+  decodeTakeoverFrame,
+  isScreenSnapshotFrame,
+  isScreenDeltaFrame,
+  isInputEventFrame,
+  isResizeFrame,
+  ATTR_BOLD,
+  ATTR_DIM,
+  ATTR_ITALIC,
+  ATTR_UNDERLINE,
+  ATTR_REVERSE,
+  ATTR_STRIKETHROUGH,
+} from './takeover.js'
