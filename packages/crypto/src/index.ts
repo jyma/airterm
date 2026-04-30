@@ -24,3 +24,16 @@ export {
 } from './sequence.js'
 
 export { generateSAS } from './sas.js'
+
+export {
+  HandshakeState,
+  SymmetricState,
+  CipherState,
+  generateNoiseKeyPair,
+  NOISE_PROTOCOL_NAME,
+  DHLEN,
+  HASHLEN,
+  TAGLEN,
+  type NoiseKeyPair,
+  type HandshakeResult,
+} from './noise.js'
