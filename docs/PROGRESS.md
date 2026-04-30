@@ -2,10 +2,10 @@
 
 > 当前进度与下次继续开工的准备信息。完整产品定位与阶段计划见 `docs/ROADMAP.md`。
 
-**最后更新**: 2026-04-22
-**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `47be841`，已与 `airterm/redesign` 同步
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **下一步 Phase 3**
-**下次会话入口**: 跳到本文 "下一步：Phase 3" 一节读清单，对照"现状勘察"继续
+**最后更新**: 2026-04-30
+**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `7f925d6`，**领先 `airterm/redesign` 5 个 commit 未 push**
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计中（6/15）** · Phase 3 队列中
+**下次会话入口**: 跳到本文 "Phase 2.5 UI 重设计" 一节，对照已完成清单继续从 A3/A4/A6 起步
 
 ---
 
@@ -172,7 +172,58 @@ open apps/mac/build/AirTerm.app
 
 ---
 
+## Phase 2.5 · UI 重设计(对标 Ghostty 功能 + Starship 美感)
+
+**启动**: 2026-04-30
+**目标**: 在 Phase 3 之前先把 UI 推到产品级 — Ghostty 级窗口质感 + Starship 级 prompt + Chrome Theme 系统。
+**进度**: 6/15 任务完成。
+
+### 已完成(5 个 commit)
+
+- ✅ **A1** Nerd Font 内置 — `06c01b9`
+  - JetBrainsMono Nerd Font Mono 4 个权重 ttf 进 `Resources/Fonts/`(~9.6MB OFL)
+  - 启动 `BundledFonts.registerAll()` 用 `CTFontManagerRegisterFontsForURL` process scope 注册,不污染系统字体
+  - Config 默认 family 切到 `JetBrainsMonoNFM-Regular`(PostScript name)
+- ✅ **A2** 窗口 chrome 升级 — `06c01b9`
+  - styleMask 加 `.fullSizeContentView`,主题色直通顶部
+  - `titleVisibility = .hidden`,traffic lights 浮在主题色上
+  - 28pt 顶部 inset(autolayout)给 traffic lights 留位
+- ✅ **A5-1** airprompt Cargo 工程骨架 — `6d33ac6`
+  - `tools/airprompt/` 13 个文件,clap CLI + TOML loader + 7 模块占位 + ANSI style helper
+  - Profile lto + strip + panic=abort,binary 913KB,冷启 10ms
+- ✅ **A5-2** airprompt 真模块 — `0b9dedc`
+  - 加 chrono(clock-only)+ git2(vendored libgit2)依赖
+  - directory(HOME→~,N-component 截断)/ git_branch(libgit2 shorthand + detached SHA fallback)/ git_status(dirty + ahead/behind)/ time(chrono strftime)
+  - binary 1.5MB,冷启 20ms(含 git2 + 中等仓库 status 扫描)
+- ✅ **A7** shell-init 注入 + **A9** bundle 集成 — `7f925d6`
+  - `shell_init.rs`: zsh add-zsh-hook + zsh/datetime EPOCHREALTIME / bash DEBUG trap + PROMPT_COMMAND;两边都做 starship/p10k/oh-my-zsh 检测自动 yield
+  - `AirpromptShell.swift`: 写 ZDOTDIR shim 到 `~/Library/Application Support/AirTerm/shell/`,.zshrc + .bashrc 都 source 用户原 rc 后再 eval airprompt init
+  - `PTY.swift`: zsh 走 ZDOTDIR;bash 丢 -l 改 --rcfile=shim;两边都把 airprompt bin dir prepend 到 PATH
+  - `Config.swift`: `[shell] inject_prompt = true` 默认开
+  - `bundle.sh`: cargo build --release + 拷 binary 到 `Resources/bin/airprompt` + ad-hoc 签名
+  - **验证**: 重启 AirTerm 用户立刻看到 `~/GitHub/airterm  redesign * ⇡N\n❯` 风格 prompt,完全没碰用户 dotfiles
+
+### 待办(9 个,按 ROI 排序)
+
+| # | 任务 | 工时 | 备注 |
+|---|---|---|---|
+| **A4** | 底部 Status Bar 骨架(` cwd ·  git ·  proc · HH:mm`) | 5h | 视觉冲击最大 |
+| **A6** | 5 套 starship preset prompt.toml(pastel-powerline / tokyo-night / gruvbox-rainbow / jetpack / minimal) | 4h | toml 切换可见多样性 |
+| **B3** | 自定义 Tab Bar(取代 macOS 原生)+ nf-icon 自动按 cwd 选 | 6h | |
+| **B4** | 命令面板 ⇧⌘P(切主题/分屏/打开 config 等 fuzzy 搜索) | 5h | |
+| **A8** | OSC 133 集成(prompt 边界识别 + 左侧色条装饰 + 后续命令跳转) | 4h | |
+| **C1** | Onboarding 首启 + 主题切换 UI | 4h | |
+| **A3** | Theme 加语义色(prompt/git/error/success/warning/info)| 2h | A4 / Chrome Theme 的依赖 |
+| **B1** | ChromeTheme 概念 + TOML `[chrome]` 顶层段 | 3h | B2/B3 的依赖 |
+| **B2** | 5 套 ChromeTheme preset(对应 5 套 prompt) | 6h | |
+
+**下次会话起步**: 推荐 A3 + A4 双连击(7h,Status Bar 落地) → 再 A6(切换可见多样性) → B 系列(ChromeTheme 系统)。所有任务在 TaskCreate 列表(#1-#15)。
+
+---
+
 ## 下一步：Phase 3 · 信令 + 配对重建（~1 周，跨 4 子系统）
+
+**注**: Phase 2.5 完成前,Phase 3 暂停在队列。Phase 3 范围、切片建议、子系统现状勘察见下方原内容。
 
 **目标**：Mac 菜单"配对新设备" → 出二维码 → 手机扫码 → Noise IK 握手完成 → 配对 token 持久化。此阶段不传屏幕数据。
 
