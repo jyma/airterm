@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-30
 **当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对收官 ✅(代码 + E2E 测试)**
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover 数据面起步**(schema + 双端 channel + E2E 测试 ✅,wire 落地中)
 **下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
 
 ---
@@ -278,6 +278,28 @@ open apps/mac/build/AirTerm.app
 - ✅ **P3-Noise-Wire-Final** Web pair-flow 整合(`bb34746`) — `runPhonePairFlow(rawQR)` 串起 parseQR / completePair / loadOrCreatePhoneIdentity / createWSClient / NoisePairDriver,30s 安全超时,异常路径 WS 必断;PairPage.tsx 一行调用替代旧的 4 步
 - ✅ **drive-by** `packages/crypto/sas.ts` 改用 @noble/hashes 替代 node:crypto(浏览器构建解锁)
 - ✅ **P3-5** E2E 测试通过(`2e1fd2b`):server 进程内起真 Hono+WS+SQLite,模拟 Mac responder + Phone initiator(都用 @airterm/crypto HandshakeState),走完完整 pair init→complete→WS→Noise IK→双向 transport 加密路径,254ms 完成。**Phase 3 收官** ✅
+
+---
+
+## Phase 4 · WebRTC 数据通道 + 屏幕镜像(进行中)
+
+**起步路线**:先用 Phase 3 的 Noise transport over WS 跑 takeover 数据面(JSON 帧 + ChaCha20-Poly1305),功能闭合后再切 WebRTC P2P(Phase 4.x)。
+
+**已落地**:
+- ✅ **P4-1** protocol takeover schema + Web TakeoverChannel(`1a2db2a`)
+  - 6 帧:ScreenSnapshot / ScreenDelta / InputEvent / Resize / Ping / Bye
+  - CellFrame 包 ch + fg/bg/attrs/width;ATTR_BOLD..STRIKETHROUGH 常量
+  - Web TakeoverChannel:两 CipherState 包装,encode→encrypt→EncryptedFrame;replay 拒绝;tampering / decode 失败走 onError;7 tests 通过
+- ✅ **P4-2** Mac TakeoverFrame + TakeoverChannel Swift 移植(`8a2f71f`)
+  - 手写 Codable 离散联合 → JSON byte-for-byte 对齐 TS reference
+  - TakeoverChannel 镜像 Web 端;NoiseSession.runSelfTest 扩展含 takeover round-trip
+  - 启动时 DEBUG self-test 把 Swift Codable 漂移在 launch 第一帧抓住
+- ✅ **P4-3** E2E 测试扩展(`0926a64`)— Noise 握手后再走 ScreenSnapshot(Mac→Phone) + InputEvent(Phone→Mac),全在 215ms
+
+**待办**:
+- ⏳ **P4-Wire-Mac** PairingWindow 完成 Noise 后把 transportResult 交给一个 TakeoverSession;TerminalSession.snapshot → ScreenDelta encoder(diff 上一帧)→ TakeoverChannel.sendFrame;phone 的 InputEvent.bytes → PTY.write;Resize 处理
+- ⏳ **P4-Wire-Web** /paired 加 xterm.js;TakeoverChannel onFrame → terminal.write;键盘事件 → InputEvent
+- ⏳ **P4.x** 切 WebRTC P2P 替代 WS relay(libwebrtc Swift + 浏览器原生 RTCPeerConnection;SDP/ICE 已经有 schema)
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
