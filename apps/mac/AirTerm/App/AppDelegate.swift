@@ -2,6 +2,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
+    private var pairingWindow: PairingWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register bundled fonts before anything tries to resolve them by name.
@@ -42,6 +43,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandPalette.shared.toggle(from: NSApp.keyWindow)
     }
 
+    @objc func openPairingWindow(_ sender: Any?) {
+        // Lazy-create so the user pays the network init cost only when
+        // they actually want to pair. Reuse an existing window so a
+        // double-click on the menu item just brings the panel forward.
+        if pairingWindow == nil {
+            let serverURL = ProcessInfo.processInfo.environment["AIRTERM_RELAY_URL"]
+                ?? "https://relay.airterm.dev"
+            let macDeviceId = MacDeviceID.stableId()
+            let macName = Host.current().localizedName ?? "Mac"
+            let service = PairingService(
+                serverURL: serverURL,
+                macDeviceId: macDeviceId,
+                macName: macName
+            )
+            pairingWindow = PairingWindow(pairingService: service)
+        }
+        pairingWindow?.center()
+        pairingWindow?.makeKeyAndOrderFront(nil)
+        pairingWindow?.startPairing()
+    }
+
     private func installMainMenu() {
         let mainMenu = NSMenu()
 
@@ -71,6 +93,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: "t"
         )
         newTab.keyEquivalentModifierMask = [.command]
+
+        fileMenu.addItem(NSMenuItem.separator())
+
+        let pair = fileMenu.addItem(
+            withTitle: "Pair New Device…",
+            action: #selector(AppDelegate.openPairingWindow(_:)),
+            keyEquivalent: ""
+        )
+        pair.target = self
 
         fileMenu.addItem(NSMenuItem.separator())
 
