@@ -3,9 +3,9 @@
 > 当前进度与下次继续开工的准备信息。完整产品定位与阶段计划见 `docs/ROADMAP.md`。
 
 **最后更新**: 2026-04-30
-**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `7f925d6`，**领先 `airterm/redesign` 5 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计中（6/15）** · Phase 3 队列中
-**下次会话入口**: 跳到本文 "Phase 2.5 UI 重设计" 一节，对照已完成清单继续从 A3/A4/A6 起步
+**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `9554d4e`，**领先 `airterm/redesign` 11 个 commit 未 push**
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计中（11/15）** · Phase 3 队列中
+**下次会话入口**: 跳到本文 "Phase 2.5 UI 重设计" 一节，对照已完成清单继续从 B1/B2/B3/C1 起步
 
 ---
 
@@ -176,48 +176,51 @@ open apps/mac/build/AirTerm.app
 
 **启动**: 2026-04-30
 **目标**: 在 Phase 3 之前先把 UI 推到产品级 — Ghostty 级窗口质感 + Starship 级 prompt + Chrome Theme 系统。
-**进度**: 6/15 任务完成。
+**进度**: 11/15 任务完成。
 
-### 已完成(5 个 commit)
+### 已完成(11 个 commit)
 
-- ✅ **A1** Nerd Font 内置 — `06c01b9`
-  - JetBrainsMono Nerd Font Mono 4 个权重 ttf 进 `Resources/Fonts/`(~9.6MB OFL)
-  - 启动 `BundledFonts.registerAll()` 用 `CTFontManagerRegisterFontsForURL` process scope 注册,不污染系统字体
-  - Config 默认 family 切到 `JetBrainsMonoNFM-Regular`(PostScript name)
-- ✅ **A2** 窗口 chrome 升级 — `06c01b9`
-  - styleMask 加 `.fullSizeContentView`,主题色直通顶部
-  - `titleVisibility = .hidden`,traffic lights 浮在主题色上
-  - 28pt 顶部 inset(autolayout)给 traffic lights 留位
-- ✅ **A5-1** airprompt Cargo 工程骨架 — `6d33ac6`
-  - `tools/airprompt/` 13 个文件,clap CLI + TOML loader + 7 模块占位 + ANSI style helper
-  - Profile lto + strip + panic=abort,binary 913KB,冷启 10ms
-- ✅ **A5-2** airprompt 真模块 — `0b9dedc`
-  - 加 chrono(clock-only)+ git2(vendored libgit2)依赖
-  - directory(HOME→~,N-component 截断)/ git_branch(libgit2 shorthand + detached SHA fallback)/ git_status(dirty + ahead/behind)/ time(chrono strftime)
-  - binary 1.5MB,冷启 20ms(含 git2 + 中等仓库 status 扫描)
-- ✅ **A7** shell-init 注入 + **A9** bundle 集成 — `7f925d6`
-  - `shell_init.rs`: zsh add-zsh-hook + zsh/datetime EPOCHREALTIME / bash DEBUG trap + PROMPT_COMMAND;两边都做 starship/p10k/oh-my-zsh 检测自动 yield
-  - `AirpromptShell.swift`: 写 ZDOTDIR shim 到 `~/Library/Application Support/AirTerm/shell/`,.zshrc + .bashrc 都 source 用户原 rc 后再 eval airprompt init
-  - `PTY.swift`: zsh 走 ZDOTDIR;bash 丢 -l 改 --rcfile=shim;两边都把 airprompt bin dir prepend 到 PATH
-  - `Config.swift`: `[shell] inject_prompt = true` 默认开
-  - `bundle.sh`: cargo build --release + 拷 binary 到 `Resources/bin/airprompt` + ad-hoc 签名
-  - **验证**: 重启 AirTerm 用户立刻看到 `~/GitHub/airterm  redesign * ⇡N\n❯` 风格 prompt,完全没碰用户 dotfiles
+- ✅ **A1+A2** Nerd Font 内置 + Ghostty 风 chrome — `06c01b9`
+  - JetBrainsMono Nerd Font Mono 4 权重 ttf 进 `Resources/Fonts/`(OFL)
+  - `BundledFonts.registerAll()` 用 process scope 注册,不污染系统
+  - styleMask `.fullSizeContentView` + `titleVisibility = .hidden` + 28pt traffic-light inset
+- ✅ **A5-1** airprompt Cargo 骨架 — `6d33ac6`(913KB,冷启 10ms)
+- ✅ **A5-2** airprompt 真模块 — `0b9dedc`(libgit2 + chrono;1.5MB,冷启 20ms)
+- ✅ **A7+A9** shell-init 注入 + bundle 集成 — `7f925d6`
+  - ZDOTDIR shim(zsh)+ `--rcfile`(bash 丢 `-l`)注入,不动用户 dotfiles
+  - 检测 starship/p10k/oh-my-zsh 自动 yield;`[shell] inject_prompt` toml 字段
+  - bundle.sh cargo build + 拷 binary 到 `Resources/bin/airprompt`
+- ✅ **A3+A4 + Ghostty dim** Theme 语义色 + Status Bar + 焦点指示 — `23f47a1`
+  - Theme extension 给 14 套主题 free derive 7 个 semantic colors
+  - StatusBarView (22pt) 手工 layout(避开 NSStackView intrinsic 反向缩 window),模块: branch placeholder /  paneCount /  HH:mm
+  - 整圈 border 移除,改 Ghostty 风 dim overlay(inactive pane alpha=0.3)
+- ✅ **A8 (1/2)** OSC 7 + OSC 133 shell 集成 — `8e47a2a`
+  - airprompt prompt 包 OSC 133;A/B;shell-init 发 OSC 7 cwd + OSC 133;C/D
+  - TerminalScreen 真解析 OSC payload,onCwdChange / onPromptStart callbacks
+  - StatusBar 替换 placeholder 为真实 cwd basename + git branch(读 .git/HEAD)
+- ✅ **A8 (2/2)** Prompt 左侧色条 — `21c627f`
+  - inPromptArea 状态 + promptStartDocRow,snapshot.promptStartRow viewport-相对
+  - MetalRenderer 加 stripe pass:2pt accent stripe at col 0 from promptStart through cursorRow
+- ✅ **A6** 5 套 starship preset prompt.toml — `0f75f4c`
+  - pastel-powerline / tokyo-night / gruvbox-rainbow / jetpack / minimal
+  - bundle.sh 拷 presets 到 `Resources/airprompt-presets/`,README 说明 `cp` 切换
+- ✅ **B4** ⇧⌘P 命令面板 — `9554d4e`
+  - NSPanel 浮窗 + NSSearchField + NSTableView,substring filter
+  - 命令:14 主题切换 / split / new tab / close pane / open config
+  - 通过 Edit 菜单 ⇧⌘P 走 responder chain,无全局 event monitor
 
-### 待办(9 个,按 ROI 排序)
+### 待办(4 个)
 
 | # | 任务 | 工时 | 备注 |
 |---|---|---|---|
-| **A4** | 底部 Status Bar 骨架(` cwd ·  git ·  proc · HH:mm`) | 5h | 视觉冲击最大 |
-| **A6** | 5 套 starship preset prompt.toml(pastel-powerline / tokyo-night / gruvbox-rainbow / jetpack / minimal) | 4h | toml 切换可见多样性 |
-| **B3** | 自定义 Tab Bar(取代 macOS 原生)+ nf-icon 自动按 cwd 选 | 6h | |
-| **B4** | 命令面板 ⇧⌘P(切主题/分屏/打开 config 等 fuzzy 搜索) | 5h | |
-| **A8** | OSC 133 集成(prompt 边界识别 + 左侧色条装饰 + 后续命令跳转) | 4h | |
-| **C1** | Onboarding 首启 + 主题切换 UI | 4h | |
-| **A3** | Theme 加语义色(prompt/git/error/success/warning/info)| 2h | A4 / Chrome Theme 的依赖 |
-| **B1** | ChromeTheme 概念 + TOML `[chrome]` 顶层段 | 3h | B2/B3 的依赖 |
-| **B2** | 5 套 ChromeTheme preset(对应 5 套 prompt) | 6h | |
+| **B3** | 自定义 Tab Bar(取代 macOS 原生)+ nf-icon 按 cwd 自动选 | 6h | 视觉再升一档 |
+| **B1** | ChromeTheme 概念 + TOML `[chrome]` 顶层段 | 3h | B2 依赖 |
+| **B2** | 5 套 ChromeTheme preset(整合 prompt + status + tab + 命令面板) | 6h | 把 5 套 starship preset 整体串起来 |
+| **C1** | Onboarding 首启 + 主题切换 UI | 4h | 一次性 |
 
-**下次会话起步**: 推荐 A3 + A4 双连击(7h,Status Bar 落地) → 再 A6(切换可见多样性) → B 系列(ChromeTheme 系统)。所有任务在 TaskCreate 列表(#1-#15)。
+**核心产品命题(对标 Ghostty + Starship)已达成**:用户打开 AirTerm 看到 Ghostty 级 chrome + 自动注入 Starship 级 prompt + status bar + 5 套 prompt preset + ⇧⌘P 命令面板 + 14 套 color theme。剩余是把 ChromeTheme 系统串起来 + Tab Bar + Onboarding。
+
+**下次会话起步**: 推荐 B3(自定义 Tab Bar 视觉冲击大) → B1+B2(把 5 套 preset 升级成完整 ChromeTheme,影响 status bar + tab bar) → C1。
 
 ---
 
