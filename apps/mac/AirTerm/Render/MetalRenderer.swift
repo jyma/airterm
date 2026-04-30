@@ -1,3 +1,4 @@
+import AppKit
 import CoreText
 import Foundation
 import MetalKit
@@ -214,15 +215,27 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
         for row in 0..<min(snapshot.rows, snapshot.grid.count) {
             let line = snapshot.grid[row]
-            for col in 0..<min(snapshot.cols, line.count) {
+            var col = 0
+            let maxCol = min(snapshot.cols, line.count)
+            while col < maxCol {
                 let cell = line[col]
+                // Trailing half of a wide glyph: its leading cell already
+                // painted these pixels, so skip.
+                if cell.width == 0 {
+                    col += 1
+                    continue
+                }
+
+                let span = cell.width == 2 ? 2 : 1
+                let spanPx = Float(span) * cellW
+                let spanSize = SIMD2<Float>(spanPx, cellH)
                 let attrs = cell.attrs
 
-                var fg = attrs.fg
-                var bg = attrs.bg
+                var fg = AnsiPalette.resolve(attrs.fg, theme: theme)
+                var bg = attrs.bg.map { AnsiPalette.resolve($0, theme: theme) }
                 if attrs.reverse {
                     let oldFg = fg
-                    fg = bg ?? CellAttributes.defaultBg
+                    fg = bg ?? theme.background
                     bg = oldFg
                 }
                 if attrs.dim {
@@ -238,18 +251,18 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                         cellOriginPx: origin,
                         atlasOrigin: solidOrigin,
                         atlasSize: solidSize,
-                        cellSizePx: cellSize,
+                        cellSizePx: spanSize,
                         color: bg
                     ))
                 }
 
                 if cell.char != " " {
-                    let entry = atlas.entry(for: cell.char, bold: attrs.bold)
+                    let entry = atlas.entry(for: cell.char, bold: attrs.bold, width: cell.width)
                     foregrounds.append(InstanceData(
                         cellOriginPx: origin,
                         atlasOrigin: entry.atlasOrigin,
                         atlasSize: entry.atlasSize,
-                        cellSizePx: cellSize,
+                        cellSizePx: spanSize,
                         color: fg
                     ))
                 }
@@ -259,7 +272,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                         cellOriginPx: SIMD2<Float>(origin.x, origin.y + cellH - underlineHeight),
                         atlasOrigin: solidOrigin,
                         atlasSize: solidSize,
-                        cellSizePx: SIMD2<Float>(cellW, underlineHeight),
+                        cellSizePx: SIMD2<Float>(spanPx, underlineHeight),
                         color: fg
                     ))
                 }
@@ -269,10 +282,12 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                         cellOriginPx: SIMD2<Float>(origin.x, origin.y + cellH * 0.5 - 1),
                         atlasOrigin: solidOrigin,
                         atlasSize: solidSize,
-                        cellSizePx: SIMD2<Float>(cellW, 2),
+                        cellSizePx: SIMD2<Float>(spanPx, 2),
                         color: fg
                     ))
                 }
+
+                col += span
             }
         }
 
@@ -354,8 +369,33 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     /// display family name like "JetBrains Mono") + a weight into a CTFont.
     /// Uses trait-based descriptor matching so bold always picks the right
     /// variant, even when its PostScript name doesn't fit a `-Bold` pattern.
+    /// If the user-supplied name isn't discoverable (macOS silently returns
+    /// Helvetica for unknown names — notably for the display name "SF Mono"),
+    /// fall back through the PostScript name and finally Menlo so we're
+    /// guaranteed a monospace face.
     private static func loadMonoFont(family: String, pixelSize: CGFloat, weight: Weight) -> CTFont {
-        let probe = CTFontCreateWithName(family as CFString, pixelSize, nil)
+        func tryMono(_ name: String) -> CTFont? {
+            let f = CTFontCreateWithName(name as CFString, pixelSize, nil)
+            return CTFontGetSymbolicTraits(f).contains(.monoSpaceTrait) ? f : nil
+        }
+
+        // SF Mono is SIP-restricted: CTFontCreateWithName("SFMono-Regular" …)
+        // silently drops the monoSpace trait or returns Helvetica for the
+        // display name "SF Mono". The supported path is
+        // NSFont.monospacedSystemFont, which resolves to SF Mono on macOS 10.15+.
+        let normalized = family.lowercased().trimmingCharacters(in: .whitespaces)
+        let isSFMonoRequest = normalized == "sf mono"
+            || normalized == "sfmono"
+            || normalized.hasPrefix("sfmono-")
+
+        if isSFMonoRequest {
+            let nsWeight: NSFont.Weight = weight == .bold ? .bold : .regular
+            return NSFont.monospacedSystemFont(ofSize: pixelSize, weight: nsWeight)
+        }
+
+        let candidates = [family, "Menlo-Regular"]
+        let probe = candidates.lazy.compactMap(tryMono).first
+            ?? CTFontCreateWithName("Menlo-Regular" as CFString, pixelSize, nil)
         let displayFamily = CTFontCopyFamilyName(probe) as String
 
         let traits: CTFontSymbolicTraits = weight == .bold ? .boldTrait : []

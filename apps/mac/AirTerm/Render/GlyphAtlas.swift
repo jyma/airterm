@@ -20,6 +20,7 @@ final class GlyphAtlas {
     private struct Key: Hashable {
         let char: Character
         let bold: Bool
+        let width: UInt8
     }
 
     private let atlasPixelSize: Int
@@ -73,39 +74,47 @@ final class GlyphAtlas {
         self.nextSlot = 1
     }
 
-    func entry(for char: Character, bold: Bool = false) -> GlyphEntry {
-        let key = Key(char: char, bold: bold)
+    func entry(for char: Character, bold: Bool = false, width: UInt8 = 1) -> GlyphEntry {
+        // Trailing halves are never drawn; defensively normalise to 1.
+        let slots = max(1, Int(width == 2 ? 2 : 1))
+        let key = Key(char: char, bold: bold, width: UInt8(slots))
         if let cached = cache[key] { return cached }
         let font = bold ? boldFont : regularFont
-        let entry = rasterize(char, font: font)
+        let entry = rasterize(char, font: font, slots: slots)
         cache[key] = entry
         return entry
     }
 
-    private func rasterize(_ char: Character, font: CTFont) -> GlyphEntry {
+    private func rasterize(_ char: Character, font: CTFont, slots: Int) -> GlyphEntry {
         let cellW = Int(layout.cellWidth)
         let cellH = Int(layout.cellHeight)
+        // A wide glyph needs `slots` contiguous cells in one atlas row. Skip
+        // to the next row if the current row can't fit them.
+        if (nextSlot % colsPerRow) + slots > colsPerRow {
+            nextSlot += colsPerRow - (nextSlot % colsPerRow)
+        }
         let slot = nextSlot
-        nextSlot += 1
+        nextSlot += slots
 
-        if slot >= colsPerRow * rowsPerAtlas {
-            DebugLog.log("GlyphAtlas is full; reusing slot 0")
-            nextSlot = 1
+        if slot + slots > colsPerRow * rowsPerAtlas {
+            DebugLog.log("GlyphAtlas is full; reusing slot 1")
+            nextSlot = slots + 1
         }
 
         let col = slot % colsPerRow
         let row = slot / colsPerRow
+        let cellPxW = cellW * slots
 
-        var pixels = [UInt8](repeating: 0, count: cellW * cellH)
+        var pixels = [UInt8](repeating: 0, count: cellPxW * cellH)
         let cs = CGColorSpaceCreateDeviceGray()
 
         pixels.withUnsafeMutableBufferPointer { buf in
             guard let ctx = CGContext(
                 data: buf.baseAddress,
-                width: cellW,
+                width: cellPxW,
                 height: cellH,
                 bitsPerComponent: 8,
-                bytesPerRow: cellW,
+                bytesPerRow: cellPxW,
                 space: cs,
                 bitmapInfo: CGImageAlphaInfo.none.rawValue
             ) else {
@@ -114,7 +123,11 @@ final class GlyphAtlas {
             }
 
             ctx.setShouldAntialias(true)
-            ctx.setShouldSmoothFonts(true)
+            // Font smoothing (macOS-style "LCD" strengthening) thickens glyphs
+            // to hide RGB fringes on low-DPI displays. On Retina it just makes
+            // the font look heavier than Ghostty / iTerm2 / Terminal.app —
+            // they all disable it too.
+            ctx.setShouldSmoothFonts(false)
             ctx.setAllowsFontSubpixelQuantization(true)
 
             let whiteRGB = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
@@ -142,26 +155,23 @@ final class GlyphAtlas {
             DebugLog.log("GlyphAtlas: zero coverage for char=\(char)")
         }
 
-        // CGBitmapContext memory is row-major with row 0 = top of image, even though
-        // its drawing CTM is y-up. That already matches Metal's top-left uv origin,
-        // so no row flip is needed.
         let region = MTLRegion(
             origin: MTLOrigin(x: col * cellW, y: row * cellH, z: 0),
-            size: MTLSize(width: cellW, height: cellH, depth: 1)
+            size: MTLSize(width: cellPxW, height: cellH, depth: 1)
         )
         pixels.withUnsafeBytes { ptr in
             texture.replace(
                 region: region,
                 mipmapLevel: 0,
                 withBytes: ptr.baseAddress!,
-                bytesPerRow: cellW
+                bytesPerRow: cellPxW
             )
         }
 
         let atlasSizeF = Float(atlasPixelSize)
         return GlyphEntry(
             atlasOrigin: SIMD2<Float>(Float(col * cellW) / atlasSizeF, Float(row * cellH) / atlasSizeF),
-            atlasSize: SIMD2<Float>(Float(cellW) / atlasSizeF, Float(cellH) / atlasSizeF)
+            atlasSize: SIMD2<Float>(Float(cellPxW) / atlasSizeF, Float(cellH) / atlasSizeF)
         )
     }
 }

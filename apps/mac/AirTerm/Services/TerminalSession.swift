@@ -27,6 +27,15 @@ final class TerminalSession {
         let home = env["HOME"]
         let screen = self.screen
 
+        pty.onForegroundProcessChange = { [weak screen] in
+            screen?.resetSGR()
+        }
+
+        // Match Ghostty / iTerm2 default: spawn the shell directly as a login
+        // shell so we inherit the host process's PATH (including brew, nvm,
+        // user-local bins) rather than routing through `/usr/bin/login`,
+        // which rebuilds PATH from /etc/paths and loses entries like
+        // `~/.claude/local/bin`.
         pty.start(
             command: shell,
             arguments: ["-l"],

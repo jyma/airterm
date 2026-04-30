@@ -1,8 +1,14 @@
+import AppKit
 import Foundation
 
 /// Process-wide config holder. Owns the current `Config` + `Theme`, loads from
 /// disk on startup, and watches the config file via a DispatchSource so live
 /// edits push through to observers without a restart.
+///
+/// Resolves the "active" theme through three sources, in priority order:
+/// 1. `manualOverride` — user picked a theme via menu / shortcut (session only)
+/// 2. `config.theme.light` + `config.theme.dark` — auto-follow macOS Appearance
+/// 3. `config.theme.name` — single fixed theme
 final class ConfigStore {
     static let shared = ConfigStore()
 
@@ -11,13 +17,17 @@ final class ConfigStore {
     private var observers: [UUID: (Config, Theme) -> Void] = [:]
     private var watcher: DispatchSourceFileSystemObject?
     private let queue = DispatchQueue(label: "airterm.config.store", qos: .userInitiated)
+    /// Session-only override from menu / shortcut. Cleared on config reload
+    /// so the TOML remains authoritative after the user edits it.
+    private var manualOverride: String?
+    private var appearanceObserver: NSObjectProtocol?
 
     private init() {
         Config.seedIfMissing()
         let loaded = Config.load()
         self.config = loaded
-        self.theme = Theme.named(loaded.theme.name)
-        AnsiPalette.theme = self.theme
+        self.theme = Theme.named(Self.resolveThemeName(config: loaded, override: nil))
+        observeSystemAppearance()
     }
 
     /// Start watching the config file. Safe to call multiple times; subsequent
@@ -37,9 +47,12 @@ final class ConfigStore {
         source.setEventHandler { [weak self] in
             guard let self else { return }
             let newConfig = Config.load(from: url)
-            let newTheme = Theme.named(newConfig.theme.name)
             DispatchQueue.main.async {
-                self.apply(config: newConfig, theme: newTheme)
+                // A fresh TOML load means the user intentionally re-stated
+                // their choice; drop any in-memory override.
+                self.manualOverride = nil
+                self.config = newConfig
+                self.recomputeTheme()
                 // Re-install watcher because editors often replace files
                 // atomically, which invalidates the original fd.
                 self.startWatching(url: url)
@@ -52,17 +65,6 @@ final class ConfigStore {
         self.watcher = source
     }
 
-    /// Push the latest state to every observer on the main thread.
-    private func apply(config: Config, theme: Theme) {
-        guard config != self.config || theme.name != self.theme.name else { return }
-        self.config = config
-        self.theme = theme
-        AnsiPalette.theme = theme
-        for observer in observers.values {
-            observer(config, theme)
-        }
-    }
-
     @discardableResult
     func subscribe(_ observer: @escaping (Config, Theme) -> Void) -> UUID {
         let token = UUID()
@@ -73,5 +75,67 @@ final class ConfigStore {
 
     func unsubscribe(_ token: UUID) {
         observers.removeValue(forKey: token)
+    }
+
+    /// In-memory theme switch (not persisted). Kept separate from disk-backed
+    /// reload so UI shortcuts feel instant; the user's TOML remains the
+    /// source of truth on next launch / next config edit.
+    func setTheme(named name: String) {
+        manualOverride = name
+        recomputeTheme()
+    }
+
+    /// Cycle forward (or backward) through the built-in themes.
+    func cycleTheme(forward: Bool = true) {
+        let names = Theme.builtinNames
+        guard !names.isEmpty else { return }
+        let current = names.firstIndex(of: theme.name) ?? 0
+        let next = forward
+            ? (current + 1) % names.count
+            : (current + names.count - 1) % names.count
+        setTheme(named: names[next])
+    }
+
+    // MARK: - Resolution
+
+    private func recomputeTheme() {
+        let name = Self.resolveThemeName(config: config, override: manualOverride)
+        let resolved = Theme.named(name)
+        if resolved.name != theme.name {
+            theme = resolved
+        }
+        // Always broadcast — observers may care about non-theme config changes
+        // (font, opacity, cursor style, padding).
+        for observer in observers.values {
+            observer(config, theme)
+        }
+    }
+
+    private static func resolveThemeName(config: Config, override: String?) -> String {
+        if let override { return override }
+        if let light = config.theme.light, let dark = config.theme.dark {
+            return isSystemDark() ? dark : light
+        }
+        return config.theme.name
+    }
+
+    private static func isSystemDark() -> Bool {
+        let app = NSApplication.shared
+        let match = app.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+        return match == .darkAqua
+    }
+
+    private func observeSystemAppearance() {
+        // macOS broadcasts this distributed notification whenever the user
+        // flips System Settings → Appearance, or when `automatic` crosses
+        // sunset. We only need to re-resolve; `effectiveAppearance` will
+        // reflect the new state by the time the handler fires.
+        appearanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.recomputeTheme()
+        }
     }
 }

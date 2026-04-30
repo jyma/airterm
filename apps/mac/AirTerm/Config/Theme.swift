@@ -26,7 +26,41 @@ extension Theme {
         "tokyo-night": .tokyoNight,
         "dracula": .dracula,
         "solarized-dark": .solarizedDark,
+        "gruvbox-dark": .gruvboxDark,
+        "nord": .nord,
+        "rose-pine": .rosePine,
+        "one-dark": .oneDark,
+        "catppuccin-latte": .catppuccinLatte,
+        "tokyo-night-day": .tokyoNightDay,
+        "rose-pine-dawn": .rosePineDawn,
+        "gruvbox-light": .gruvboxLight,
+        "one-light": .oneLight,
+        "solarized-light": .solarizedLight,
     ]
+
+    /// Stable, display order for menu / cycle UIs. Dark first, then light.
+    static let builtinNames: [String] = [
+        "catppuccin-mocha",
+        "tokyo-night",
+        "dracula",
+        "solarized-dark",
+        "gruvbox-dark",
+        "nord",
+        "rose-pine",
+        "one-dark",
+        "catppuccin-latte",
+        "tokyo-night-day",
+        "rose-pine-dawn",
+        "gruvbox-light",
+        "one-light",
+        "solarized-light",
+    ]
+
+    /// Returns whether this theme is intended for light backgrounds. Used by
+    /// the system-appearance auto-switch to pick the right member of a pair.
+    var isLight: Bool {
+        background.x + background.y + background.z > 1.5
+    }
 
     static func named(_ name: String) -> Theme {
         builtins[name.lowercased()] ?? .catppuccinMocha
@@ -125,6 +159,308 @@ extension Theme {
         foreground: Theme.color(hex: 0x839496),
         cursor: Theme.color(hex: 0x93A1A1),
         selection: SIMD4<Float>(0.027, 0.212, 0.259, 0.55),
+        accent: Theme.color(hex: 0x268BD2),
+        ansiStandard: [
+            Theme.color(hex: 0x073642),
+            Theme.color(hex: 0xDC322F),
+            Theme.color(hex: 0x859900),
+            Theme.color(hex: 0xB58900),
+            Theme.color(hex: 0x268BD2),
+            Theme.color(hex: 0xD33682),
+            Theme.color(hex: 0x2AA198),
+            Theme.color(hex: 0xEEE8D5),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x002B36),
+            Theme.color(hex: 0xCB4B16),
+            Theme.color(hex: 0x586E75),
+            Theme.color(hex: 0x657B83),
+            Theme.color(hex: 0x839496),
+            Theme.color(hex: 0x6C71C4),
+            Theme.color(hex: 0x93A1A1),
+            Theme.color(hex: 0xFDF6E3),
+        ]
+    )
+
+    /// Gruvbox Dark (hard contrast) — Pavel Pertsev, MIT.
+    static let gruvboxDark = Theme(
+        name: "gruvbox-dark",
+        background: Theme.color(hex: 0x282828),
+        foreground: Theme.color(hex: 0xEBDBB2),
+        cursor: Theme.color(hex: 0xEBDBB2),
+        selection: SIMD4<Float>(0.314, 0.286, 0.271, 0.55),
+        accent: Theme.color(hex: 0xFABD2F),
+        ansiStandard: [
+            Theme.color(hex: 0x282828),
+            Theme.color(hex: 0xCC241D),
+            Theme.color(hex: 0x98971A),
+            Theme.color(hex: 0xD79921),
+            Theme.color(hex: 0x458588),
+            Theme.color(hex: 0xB16286),
+            Theme.color(hex: 0x689D6A),
+            Theme.color(hex: 0xA89984),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x928374),
+            Theme.color(hex: 0xFB4934),
+            Theme.color(hex: 0xB8BB26),
+            Theme.color(hex: 0xFABD2F),
+            Theme.color(hex: 0x83A598),
+            Theme.color(hex: 0xD3869B),
+            Theme.color(hex: 0x8EC07C),
+            Theme.color(hex: 0xEBDBB2),
+        ]
+    )
+
+    /// Nord — arctic-ice org, MIT.
+    static let nord = Theme(
+        name: "nord",
+        background: Theme.color(hex: 0x2E3440),
+        foreground: Theme.color(hex: 0xD8DEE9),
+        cursor: Theme.color(hex: 0xD8DEE9),
+        selection: SIMD4<Float>(0.298, 0.337, 0.416, 0.55),
+        accent: Theme.color(hex: 0x88C0D0),
+        ansiStandard: [
+            Theme.color(hex: 0x3B4252),
+            Theme.color(hex: 0xBF616A),
+            Theme.color(hex: 0xA3BE8C),
+            Theme.color(hex: 0xEBCB8B),
+            Theme.color(hex: 0x81A1C1),
+            Theme.color(hex: 0xB48EAD),
+            Theme.color(hex: 0x88C0D0),
+            Theme.color(hex: 0xE5E9F0),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x4C566A),
+            Theme.color(hex: 0xBF616A),
+            Theme.color(hex: 0xA3BE8C),
+            Theme.color(hex: 0xEBCB8B),
+            Theme.color(hex: 0x81A1C1),
+            Theme.color(hex: 0xB48EAD),
+            Theme.color(hex: 0x8FBCBB),
+            Theme.color(hex: 0xECEFF4),
+        ]
+    )
+
+    /// Rosé Pine (Main) — rose-pine org, MIT.
+    static let rosePine = Theme(
+        name: "rose-pine",
+        background: Theme.color(hex: 0x191724),
+        foreground: Theme.color(hex: 0xE0DEF4),
+        cursor: Theme.color(hex: 0xE0DEF4),
+        selection: SIMD4<Float>(0.149, 0.137, 0.227, 0.55),
+        accent: Theme.color(hex: 0xC4A7E7),
+        ansiStandard: [
+            Theme.color(hex: 0x26233A),
+            Theme.color(hex: 0xEB6F92),
+            Theme.color(hex: 0x31748F),
+            Theme.color(hex: 0xF6C177),
+            Theme.color(hex: 0x9CCFD8),
+            Theme.color(hex: 0xC4A7E7),
+            Theme.color(hex: 0xEBBCBA),
+            Theme.color(hex: 0xE0DEF4),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x6E6A86),
+            Theme.color(hex: 0xEB6F92),
+            Theme.color(hex: 0x31748F),
+            Theme.color(hex: 0xF6C177),
+            Theme.color(hex: 0x9CCFD8),
+            Theme.color(hex: 0xC4A7E7),
+            Theme.color(hex: 0xEBBCBA),
+            Theme.color(hex: 0xE0DEF4),
+        ]
+    )
+
+    /// One Dark (Atom) — GitHub/Atom, MIT.
+    static let oneDark = Theme(
+        name: "one-dark",
+        background: Theme.color(hex: 0x282C34),
+        foreground: Theme.color(hex: 0xABB2BF),
+        cursor: Theme.color(hex: 0x528BFF),
+        selection: SIMD4<Float>(0.243, 0.267, 0.325, 0.55),
+        accent: Theme.color(hex: 0x61AFEF),
+        ansiStandard: [
+            Theme.color(hex: 0x282C34),
+            Theme.color(hex: 0xE06C75),
+            Theme.color(hex: 0x98C379),
+            Theme.color(hex: 0xE5C07B),
+            Theme.color(hex: 0x61AFEF),
+            Theme.color(hex: 0xC678DD),
+            Theme.color(hex: 0x56B6C2),
+            Theme.color(hex: 0xABB2BF),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x5C6370),
+            Theme.color(hex: 0xE06C75),
+            Theme.color(hex: 0x98C379),
+            Theme.color(hex: 0xE5C07B),
+            Theme.color(hex: 0x61AFEF),
+            Theme.color(hex: 0xC678DD),
+            Theme.color(hex: 0x56B6C2),
+            Theme.color(hex: 0xFFFFFF),
+        ]
+    )
+
+    // MARK: - Light themes
+
+    /// Catppuccin Latte — Catppuccin org, MIT.
+    static let catppuccinLatte = Theme(
+        name: "catppuccin-latte",
+        background: Theme.color(hex: 0xEFF1F5),
+        foreground: Theme.color(hex: 0x4C4F69),
+        cursor: Theme.color(hex: 0xDC8A78),
+        selection: SIMD4<Float>(0.675, 0.690, 0.745, 0.55),
+        accent: Theme.color(hex: 0x1E66F5),
+        ansiStandard: [
+            Theme.color(hex: 0x5C5F77),
+            Theme.color(hex: 0xD20F39),
+            Theme.color(hex: 0x40A02B),
+            Theme.color(hex: 0xDF8E1D),
+            Theme.color(hex: 0x1E66F5),
+            Theme.color(hex: 0xEA76CB),
+            Theme.color(hex: 0x179299),
+            Theme.color(hex: 0xACB0BE),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x6C6F85),
+            Theme.color(hex: 0xD20F39),
+            Theme.color(hex: 0x40A02B),
+            Theme.color(hex: 0xDF8E1D),
+            Theme.color(hex: 0x1E66F5),
+            Theme.color(hex: 0xEA76CB),
+            Theme.color(hex: 0x179299),
+            Theme.color(hex: 0xBCC0CC),
+        ]
+    )
+
+    /// Tokyo Night Day — enkia, MIT.
+    static let tokyoNightDay = Theme(
+        name: "tokyo-night-day",
+        background: Theme.color(hex: 0xE1E2E7),
+        foreground: Theme.color(hex: 0x3760BF),
+        cursor: Theme.color(hex: 0x3760BF),
+        selection: SIMD4<Float>(0.600, 0.655, 0.875, 0.45),
+        accent: Theme.color(hex: 0x2E7DE9),
+        ansiStandard: [
+            Theme.color(hex: 0xB4B5B9),
+            Theme.color(hex: 0xF52A65),
+            Theme.color(hex: 0x587539),
+            Theme.color(hex: 0x8C6C3E),
+            Theme.color(hex: 0x2E7DE9),
+            Theme.color(hex: 0x9854F1),
+            Theme.color(hex: 0x007197),
+            Theme.color(hex: 0x6172B0),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0xA1A6C5),
+            Theme.color(hex: 0xF52A65),
+            Theme.color(hex: 0x587539),
+            Theme.color(hex: 0x8C6C3E),
+            Theme.color(hex: 0x2E7DE9),
+            Theme.color(hex: 0x9854F1),
+            Theme.color(hex: 0x007197),
+            Theme.color(hex: 0x3760BF),
+        ]
+    )
+
+    /// Rosé Pine Dawn — rose-pine org, MIT.
+    static let rosePineDawn = Theme(
+        name: "rose-pine-dawn",
+        background: Theme.color(hex: 0xFAF4ED),
+        foreground: Theme.color(hex: 0x575279),
+        cursor: Theme.color(hex: 0x575279),
+        selection: SIMD4<Float>(0.875, 0.855, 0.851, 0.55),
+        accent: Theme.color(hex: 0x907AA9),
+        ansiStandard: [
+            Theme.color(hex: 0xF2E9E1),
+            Theme.color(hex: 0xB4637A),
+            Theme.color(hex: 0x286983),
+            Theme.color(hex: 0xEA9D34),
+            Theme.color(hex: 0x56949F),
+            Theme.color(hex: 0x907AA9),
+            Theme.color(hex: 0xD7827E),
+            Theme.color(hex: 0x575279),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x9893A5),
+            Theme.color(hex: 0xB4637A),
+            Theme.color(hex: 0x286983),
+            Theme.color(hex: 0xEA9D34),
+            Theme.color(hex: 0x56949F),
+            Theme.color(hex: 0x907AA9),
+            Theme.color(hex: 0xD7827E),
+            Theme.color(hex: 0x575279),
+        ]
+    )
+
+    /// Gruvbox Light (hard) — Pavel Pertsev, MIT.
+    static let gruvboxLight = Theme(
+        name: "gruvbox-light",
+        background: Theme.color(hex: 0xF9F5D7),
+        foreground: Theme.color(hex: 0x3C3836),
+        cursor: Theme.color(hex: 0x3C3836),
+        selection: SIMD4<Float>(0.835, 0.769, 0.631, 0.55),
+        accent: Theme.color(hex: 0x076678),
+        ansiStandard: [
+            Theme.color(hex: 0xFBF1C7),
+            Theme.color(hex: 0xCC241D),
+            Theme.color(hex: 0x98971A),
+            Theme.color(hex: 0xD79921),
+            Theme.color(hex: 0x458588),
+            Theme.color(hex: 0xB16286),
+            Theme.color(hex: 0x689D6A),
+            Theme.color(hex: 0x7C6F64),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x928374),
+            Theme.color(hex: 0x9D0006),
+            Theme.color(hex: 0x79740E),
+            Theme.color(hex: 0xB57614),
+            Theme.color(hex: 0x076678),
+            Theme.color(hex: 0x8F3F71),
+            Theme.color(hex: 0x427B58),
+            Theme.color(hex: 0x3C3836),
+        ]
+    )
+
+    /// One Light (Atom) — GitHub/Atom, MIT.
+    static let oneLight = Theme(
+        name: "one-light",
+        background: Theme.color(hex: 0xFAFAFA),
+        foreground: Theme.color(hex: 0x383A42),
+        cursor: Theme.color(hex: 0x526EFF),
+        selection: SIMD4<Float>(0.898, 0.898, 0.902, 0.55),
+        accent: Theme.color(hex: 0x4078F2),
+        ansiStandard: [
+            Theme.color(hex: 0x383A42),
+            Theme.color(hex: 0xE45649),
+            Theme.color(hex: 0x50A14F),
+            Theme.color(hex: 0xC18401),
+            Theme.color(hex: 0x0184BC),
+            Theme.color(hex: 0xA626A4),
+            Theme.color(hex: 0x0997B3),
+            Theme.color(hex: 0xFAFAFA),
+        ],
+        ansiBright: [
+            Theme.color(hex: 0x4F525D),
+            Theme.color(hex: 0xE45649),
+            Theme.color(hex: 0x50A14F),
+            Theme.color(hex: 0xC18401),
+            Theme.color(hex: 0x0184BC),
+            Theme.color(hex: 0xA626A4),
+            Theme.color(hex: 0x0997B3),
+            Theme.color(hex: 0xFFFFFF),
+        ]
+    )
+
+    /// Solarized Light — Ethan Schoonover, MIT.
+    static let solarizedLight = Theme(
+        name: "solarized-light",
+        background: Theme.color(hex: 0xFDF6E3),
+        foreground: Theme.color(hex: 0x586E75),
+        cursor: Theme.color(hex: 0x586E75),
+        selection: SIMD4<Float>(0.933, 0.910, 0.835, 0.55),
         accent: Theme.color(hex: 0x268BD2),
         ansiStandard: [
             Theme.color(hex: 0x073642),

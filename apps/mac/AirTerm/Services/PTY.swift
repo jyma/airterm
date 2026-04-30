@@ -7,6 +7,14 @@ final class PTY: @unchecked Sendable {
     private(set) var masterFD: Int32 = -1
     private(set) var childPid: pid_t = 0
     private var readSource: DispatchSourceRead?
+    /// Last seen foreground process group. Changes mark a "process boundary"
+    /// (child launched / exited) — useful for resetting sticky terminal
+    /// state that the previous program leaked.
+    private var lastFgPgrp: pid_t = -1
+
+    /// Invoked whenever the foreground process group on the PTY changes.
+    /// Called on PTY's read queue; dispatch appropriately for UI work.
+    var onForegroundProcessChange: (() -> Void)?
 
     var isRunning: Bool {
         guard childPid > 0 else { return false }
@@ -42,7 +50,17 @@ final class PTY: @unchecked Sendable {
         var envDict = ProcessInfo.processInfo.environment
         envDict["TERM"] = "xterm-256color"
         envDict["COLORTERM"] = "truecolor"
+        // Identify ourselves so `bashrc_$TERM_PROGRAM` / Terminal.app-specific
+        // integration snippets (session save, AppleScript hooks) don't run
+        // inside AirTerm — they misbehave outside Terminal.app and spew errors.
+        envDict["TERM_PROGRAM"] = "AirTerm"
+        envDict["TERM_PROGRAM_VERSION"] = "0.1.0"
         if envDict["LANG"] == nil { envDict["LANG"] = "en_US.UTF-8" }
+        // Opt-in colour for BSD (macOS) and GNU coreutils so default shells
+        // feel alive without requiring rc tweaks. User rc files can unset
+        // either to restore no-colour output.
+        if envDict["CLICOLOR"] == nil { envDict["CLICOLOR"] = "1" }
+        if envDict["LSCOLORS"] == nil { envDict["LSCOLORS"] = "exfxcxdxbxegedabagacad" }
         for (key, value) in environment {
             envDict[key] = value
         }
@@ -102,6 +120,14 @@ final class PTY: @unchecked Sendable {
             let n = read(self.masterFD, &buffer, buffer.count)
             if n > 0 {
                 onOutput(Data(buffer[0..<n]))
+                // Detect fg-process transitions after delivering output so the
+                // transition is observed at the boundary between the old
+                // program's final bytes and the new program's first ones.
+                let fg = tcgetpgrp(self.masterFD)
+                if fg > 0, fg != self.lastFgPgrp {
+                    self.lastFgPgrp = fg
+                    self.onForegroundProcessChange?()
+                }
             } else if n <= 0 {
                 source.cancel()
             }

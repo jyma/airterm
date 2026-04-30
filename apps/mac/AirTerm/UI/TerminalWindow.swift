@@ -13,6 +13,16 @@ final class TerminalWindow: NSWindow {
         }
     }
 
+    /// Flip every leaf's `hasSiblings` flag after a pane-tree mutation so the
+    /// focus border only renders when there's more than one pane.
+    private func syncPaneSiblings() {
+        let leaves = rootPane.leaves
+        let multiple = leaves.count > 1
+        for leaf in leaves {
+            leaf.terminalView?.hasSiblings = multiple
+        }
+    }
+
     private var configToken: UUID?
 
     private func applyTheme(_ theme: Theme) {
@@ -34,7 +44,7 @@ final class TerminalWindow: NSWindow {
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -44,6 +54,9 @@ final class TerminalWindow: NSWindow {
         minSize = NSSize(width: 480, height: 320)
         tabbingMode = .preferred
         tabbingIdentifier = "airterm.tab-group"
+        // ARC manages window lifetime; AppKit's legacy auto-release on close
+        // otherwise double-releases the window (crashes on tab close).
+        isReleasedWhenClosed = false
 
         applyTheme(ConfigStore.shared.theme)
         alphaValue = CGFloat(ConfigStore.shared.config.window.opacity)
@@ -64,6 +77,8 @@ final class TerminalWindow: NSWindow {
         container.autoresizingMask = [.width, .height]
         content.addSubview(container)
         self.container = container
+
+        syncPaneSiblings()
 
         DispatchQueue.main.async { [weak self] in
             self?.makeFirstResponder(firstTV)
@@ -191,6 +206,7 @@ final class TerminalWindow: NSWindow {
         }
 
         container.setRoot(rootPane)
+        syncPaneSiblings()
         DispatchQueue.main.async { [weak self] in
             self?.makeFirstResponder(newTV)
         }
@@ -222,6 +238,7 @@ final class TerminalWindow: NSWindow {
         }
 
         container.setRoot(rootPane)
+        syncPaneSiblings()
 
         if let firstLeaf = rootPane.leaves.first, let newFocus = firstLeaf.terminalView {
             activeTerminalView = newFocus

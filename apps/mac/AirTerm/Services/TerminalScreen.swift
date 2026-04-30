@@ -43,6 +43,10 @@ final class TerminalScreen: @unchecked Sendable {
     // Saved cursor
     private var savedRow = 0
     private var savedCol = 0
+    // Saved SGR across `?1049` alt-screen transitions so a program that
+    // forgets to reset (Claude CLI, vim, etc.) doesn't leak attrs back onto
+    // the shell prompt.
+    private var savedAttrs = CellAttributes.default
 
     // SGR state — applied to every printable char written from now on.
     private var currentAttrs = CellAttributes.default
@@ -110,6 +114,16 @@ final class TerminalScreen: @unchecked Sendable {
     func process(_ data: Data) {
         guard let text = String(data: data, encoding: .utf8) else { return }
         process(text)
+    }
+
+    /// Clear sticky SGR so a new foreground program (or the shell returning
+    /// after a child exits) starts from a clean pen. Invoked by the PTY
+    /// layer on fg-process-group transitions — programs that exit without
+    /// sending `CSI 0 m` otherwise leak underline/colour onto the prompt.
+    func resetSGR() {
+        lock.lock()
+        currentAttrs = .default
+        lock.unlock()
     }
 
     func process(_ text: String) {
@@ -204,14 +218,14 @@ final class TerminalScreen: @unchecked Sendable {
                 let cells = sb[row]
                 let s = max(0, min(startCol, cells.count))
                 let e = max(s, min(endCol + 1, cells.count))
-                if s < e { line = String(cells[s..<e].map { $0.char }) }
+                if s < e { line = String(cells[s..<e].compactMap { $0.width == 0 ? nil : $0.char }) }
             } else {
                 let liveRow = row - sb.count
                 if liveRow >= 0 && liveRow < g.count {
                     let cells = g[liveRow]
                     let s = max(0, min(startCol, cells.count))
                     let e = max(s, min(endCol + 1, cells.count))
-                    if s < e { line = String(cells[s..<e].map { $0.char }) }
+                    if s < e { line = String(cells[s..<e].compactMap { $0.width == 0 ? nil : $0.char }) }
                 }
             }
 
@@ -281,16 +295,40 @@ final class TerminalScreen: @unchecked Sendable {
             break // other control chars
         default:
             // Printable
+            let width = CharWidth.of(ch)
             if cursorCol >= cols {
                 cursorCol = 0
                 lineFeed()
             }
-            grid[cursorRow][cursorCol] = Cell(char: ch, attrs: currentAttrs)
-            cursorCol += 1
+            // A wide char that won't fit in the remaining column wraps.
+            if width == 2 && cursorCol == cols - 1 {
+                grid[cursorRow][cursorCol] = Cell(char: " ", attrs: currentAttrs, width: 1)
+                cursorCol = 0
+                lineFeed()
+            }
+            // Overwriting the leading half of an existing wide char orphans
+            // its trailing cell; blank it so we don't leave a ghost glyph.
+            if cursorCol < cols, grid[cursorRow][cursorCol].width == 2,
+               cursorCol + 1 < cols {
+                grid[cursorRow][cursorCol + 1] = Cell(char: " ", attrs: currentAttrs, width: 1)
+            }
+            // Overwriting the trailing half leaves its leading orphaned.
+            if cursorCol < cols, grid[cursorRow][cursorCol].width == 0, cursorCol > 0 {
+                grid[cursorRow][cursorCol - 1] = Cell(char: " ", attrs: currentAttrs, width: 1)
+            }
+            if width == 2 {
+                grid[cursorRow][cursorCol] = Cell(char: ch, attrs: currentAttrs, width: 2)
+                grid[cursorRow][cursorCol + 1] = Cell(char: " ", attrs: currentAttrs, width: 0)
+                cursorCol += 2
+            } else {
+                grid[cursorRow][cursorCol] = Cell(char: ch, attrs: currentAttrs, width: 1)
+                cursorCol += 1
+            }
         }
     }
 
     private func escapeChar(_ ch: Character) {
+        DebugLog.log("ESC <\(ch)>")
         switch ch {
         case "[": state = .csi; paramBuf = ""
         case "]": state = .osc; oscBuf = ""
@@ -320,6 +358,7 @@ final class TerminalScreen: @unchecked Sendable {
             .replacingOccurrences(of: ":", with: ";")
         let params = cleanBuf.split(separator: ";", omittingEmptySubsequences: false).map { Int($0) ?? 0 }
 
+        DebugLog.log("CSI \(isPrivate ? "?" : "")\(params.map(String.init).joined(separator: ";")) \(ch)")
         if isPrivate {
             handlePrivateMode(ch, params: params)
         } else {
@@ -400,37 +439,40 @@ final class TerminalScreen: @unchecked Sendable {
             case 24: currentAttrs.underline = false
             case 27: currentAttrs.reverse = false
             case 29: currentAttrs.strikethrough = false
-            case 30...37: currentAttrs.fg = AnsiPalette.ansi(index: code - 30, bright: false)
+            case 30...37: currentAttrs.fg = .palette(code - 30)
             case 38:
                 if let (color, skip) = parseExtendedColor(params, from: i + 1) {
                     currentAttrs.fg = color
                     i += skip
                 }
-            case 39: currentAttrs.fg = CellAttributes.defaultFg
-            case 40...47: currentAttrs.bg = AnsiPalette.ansi(index: code - 40, bright: false)
+            case 39: currentAttrs.fg = .defaultFg
+            case 40...47: currentAttrs.bg = .palette(code - 40)
             case 48:
                 if let (color, skip) = parseExtendedColor(params, from: i + 1) {
                     currentAttrs.bg = color
                     i += skip
                 }
             case 49: currentAttrs.bg = nil
-            case 90...97: currentAttrs.fg = AnsiPalette.ansi(index: code - 90, bright: true)
-            case 100...107: currentAttrs.bg = AnsiPalette.ansi(index: code - 100, bright: true)
+            case 90...97: currentAttrs.fg = .palette(code - 90 + 8)
+            case 100...107: currentAttrs.bg = .palette(code - 100 + 8)
             default: break
             }
             i += 1
         }
     }
 
-    private func parseExtendedColor(_ params: [Int], from index: Int) -> (SIMD4<Float>, Int)? {
+    private func parseExtendedColor(_ params: [Int], from index: Int) -> (TerminalColor, Int)? {
         guard index < params.count else { return nil }
         if params[index] == 5 {
             guard index + 1 < params.count else { return nil }
-            return (AnsiPalette.color256(params[index + 1]), 2)
+            return (.palette(params[index + 1]), 2)
         }
         if params[index] == 2 {
             guard index + 3 < params.count else { return nil }
-            return (AnsiPalette.rgb(params[index + 1], params[index + 2], params[index + 3]), 4)
+            let r = UInt8(clamping: params[index + 1])
+            let g = UInt8(clamping: params[index + 2])
+            let b = UInt8(clamping: params[index + 3])
+            return (.rgb(r, g, b), 4)
         }
         return nil
     }
@@ -445,17 +487,21 @@ final class TerminalScreen: @unchecked Sendable {
             case 7: break // DECAWM — auto-wrap
             case 12: break // cursor blink
             case 25: break // DECTCEM — cursor visibility
-            case 47, 1047:
-                // Alternate screen (without save/restore cursor)
-                if enable { switchToAltScreen() } else { switchToMainScreen() }
-            case 1049:
-                // Alternate screen with save/restore cursor
+            case 47, 1047, 1049:
+                // Alt-screen transitions. xterm only spec's save/restore for
+                // 1049, but programs that exit via 47/1047 routinely leak
+                // SGR state back onto the shell prompt — protect all three.
                 if enable {
                     savedRow = mainCursorRow; savedCol = mainCursorCol
+                    savedAttrs = currentAttrs
                     switchToAltScreen()
                 } else {
                     switchToMainScreen()
                     mainCursorRow = savedRow; mainCursorCol = savedCol
+                    // Reset SGR on exit regardless of saved state so a
+                    // kill -9 / crash inside the alt-screen program still
+                    // lands on a clean prompt.
+                    currentAttrs = .default
                 }
             case 2004: break // Bracketed paste mode
             default: break

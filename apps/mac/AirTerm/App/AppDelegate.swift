@@ -23,6 +23,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    // MARK: - Theme menu actions
+
+    @objc func selectThemeByTag(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+              item.tag >= 0, item.tag < Theme.builtinNames.count else { return }
+        ConfigStore.shared.setTheme(named: Theme.builtinNames[item.tag])
+    }
+
+    @objc func cycleThemeForward(_ sender: Any?) {
+        ConfigStore.shared.cycleTheme(forward: true)
+    }
+
     private func installMainMenu() {
         let mainMenu = NSMenu()
 
@@ -149,6 +161,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.keyEquivalentModifierMask = [.command]
             item.tag = i - 1
         }
+
+        viewMenu.addItem(NSMenuItem.separator())
+
+        let themeMenuItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
+        let themeMenu = NSMenu(title: "Theme")
+        for (i, name) in Theme.builtinNames.enumerated() {
+            // Dark themes come first in `builtinNames`; light themes follow
+            // after index 8. Insert a separator at the boundary for clarity.
+            if i == 8 { themeMenu.addItem(NSMenuItem.separator()) }
+
+            let keyEq = i < 8 ? "\(i + 1)" : ""
+            let item = themeMenu.addItem(
+                withTitle: name,
+                action: #selector(AppDelegate.selectThemeByTag(_:)),
+                keyEquivalent: keyEq
+            )
+            if !keyEq.isEmpty {
+                item.keyEquivalentModifierMask = [.command, .control]
+            }
+            item.tag = i
+            item.target = self
+        }
+        themeMenu.addItem(NSMenuItem.separator())
+        let cycle = themeMenu.addItem(
+            withTitle: "Next Theme",
+            action: #selector(AppDelegate.cycleThemeForward(_:)),
+            keyEquivalent: "t"
+        )
+        cycle.keyEquivalentModifierMask = [.command, .control]
+        cycle.target = self
+        themeMenuItem.submenu = themeMenu
+        viewMenu.addItem(themeMenuItem)
 
         viewMenuItem.submenu = viewMenu
         mainMenu.addItem(viewMenuItem)

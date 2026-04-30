@@ -16,6 +16,10 @@ struct Config: Equatable {
 
     struct ThemeRef: Equatable {
         var name: String = "catppuccin-mocha"
+        /// Optional pair for auto-follow macOS Appearance. If both are set,
+        /// `name` is ignored and the resolver picks based on system dark mode.
+        var light: String? = nil
+        var dark: String? = nil
     }
 
     struct Cursor: Equatable {
@@ -49,8 +53,14 @@ struct Config: Equatable {
     size = 14
 
     [theme]
-    # built-ins: catppuccin-mocha, tokyo-night, dracula, solarized-dark
+    # built-ins (dark):  catppuccin-mocha, tokyo-night, dracula, solarized-dark,
+    #                    gruvbox-dark, nord, rose-pine, one-dark
+    # built-ins (light): catppuccin-latte, tokyo-night-day, rose-pine-dawn,
+    #                    gruvbox-light, one-light, solarized-light
     name = "catppuccin-mocha"
+    # Auto-follow macOS Appearance: set both, `name` is ignored.
+    # light = "catppuccin-latte"
+    # dark  = "catppuccin-mocha"
 
     [cursor]
     # underline | block | bar
@@ -83,6 +93,8 @@ struct Config: Equatable {
         }
         if let theme = dict["theme"] as? [String: Any] {
             if let n = theme["name"] as? String { config.theme.name = n }
+            if let l = theme["light"] as? String { config.theme.light = l }
+            if let d = theme["dark"] as? String { config.theme.dark = d }
         }
         if let cursor = dict["cursor"] as? [String: Any] {
             if let s = cursor["style"] as? String, let style = CursorStyle(rawValue: s) {

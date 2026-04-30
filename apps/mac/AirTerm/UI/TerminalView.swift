@@ -20,6 +20,13 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         didSet { updateBorderColor() }
     }
 
+    /// Only meaningful when the window has more than one pane — otherwise the
+    /// focus indicator is visual noise. The window flips this on split /
+    /// close so a lone pane hides its border entirely.
+    var hasSiblings: Bool = false {
+        didSet { updateBorderColor() }
+    }
+
     private var borderInset: CGFloat = CGFloat(Config.default.window.padding)
     private var currentTheme: Theme = .catppuccinMocha
     private var configToken: UUID?
@@ -101,7 +108,7 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
     private func updateBorderColor() {
         let inactiveColor = SIMD4<Float>(currentTheme.background.x, currentTheme.background.y, currentTheme.background.z, 1)
-        let color = isActive ? currentTheme.accent : inactiveColor
+        let color = (isActive && hasSiblings) ? currentTheme.accent : inactiveColor
         layer?.borderColor = CGColor(srgbRed: CGFloat(color.x), green: CGFloat(color.y), blue: CGFloat(color.z), alpha: CGFloat(color.w))
     }
 
@@ -111,6 +118,19 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }
+
+    /// Keep the Metal view precisely inset inside `self` regardless of how
+    /// the parent split view resizes us. Autoresizing masks approximate this
+    /// by scaling proportionally, which breaks down when the initial frame
+    /// is `.zero` (new split panes) — the subview's frame stays negative and
+    /// the drawable never reaches a non-zero size.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        let inset = borderInset
+        let w = max(0, newSize.width - 2 * inset)
+        let h = max(0, newSize.height - 2 * inset)
+        metalView.frame = CGRect(x: inset, y: inset, width: w, height: h)
+    }
 
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
@@ -175,6 +195,12 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     }
 
     override func mouseDown(with event: NSEvent) {
+        // Clicking a pane should focus it, matching how cycleFocus / moveFocus
+        // retarget keyboard input. AppKit doesn't do this automatically.
+        if window?.firstResponder !== self {
+            window?.makeFirstResponder(self)
+        }
+
         guard let point = docPoint(from: event) else { return }
         mouseAnchor = point
 
