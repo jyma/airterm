@@ -24,4 +24,30 @@ export type {
   PairCompleteResponse,
   PairCompletedNotification,
   QRCodePayload,
+  QRCodePayloadV1,
+  QRCodePayloadV2,
 } from './pairing.js'
+
+export { isQRCodePayloadV2 } from './pairing.js'
+
+export type {
+  SignalingMessage,
+  NoiseHandshakeFrame,
+  EncryptedFrame,
+  SignalingPlainMessage,
+  WebRTCOfferMessage,
+  WebRTCAnswerMessage,
+  ICECandidateMessage,
+  PingMessage,
+  PongMessage,
+  ByeMessage,
+} from './signaling.js'
+
+export {
+  createNoiseHandshakeFrame,
+  createEncryptedFrame,
+  isNoiseHandshakeFrame,
+  isEncryptedFrame,
+  encodeSignalingPayload,
+  decodeSignalingPayload,
+} from './signaling.js'

@@ -6,7 +6,10 @@ import type {
   PairCompleteResponse,
   PairCompletedNotification,
   QRCodePayload,
+  QRCodePayloadV1,
+  QRCodePayloadV2,
 } from '../pairing.js'
+import { isQRCodePayloadV2 } from '../pairing.js'
 
 describe('Protocol Pairing Types', () => {
   it('creates a valid PairInitRequest', () => {
@@ -57,13 +60,48 @@ describe('Protocol Pairing Types', () => {
     expect(notif.type).toBe('pair_completed')
   })
 
-  it('creates a valid QRCodePayload', () => {
-    const qr: QRCodePayload = {
+  it('creates a valid v1 QRCodePayload (no version, optional macPublicKey)', () => {
+    const qr: QRCodePayloadV1 = {
       server: 'https://relay.airterm.dev',
       pairCode: 'A3X92K',
       macDeviceId: 'mac-123',
     }
     expect(qr.server).toContain('https')
     expect(qr.pairCode).toHaveLength(6)
+    expect(isQRCodePayloadV2(qr)).toBe(false)
+  })
+
+  it('creates a valid v2 QRCodePayload with required macPublicKey', () => {
+    const qr: QRCodePayloadV2 = {
+      v: 2,
+      server: 'https://relay.airterm.dev',
+      pairCode: 'A3X92K',
+      macDeviceId: 'mac-123',
+      macPublicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    }
+    expect(qr.v).toBe(2)
+    expect(qr.macPublicKey.length).toBeGreaterThan(0)
+    expect(isQRCodePayloadV2(qr)).toBe(true)
+  })
+
+  it('isQRCodePayloadV2 rejects v1-shaped payloads even with a publicKey', () => {
+    const qr: QRCodePayload = {
+      server: 'https://relay.airterm.dev',
+      pairCode: 'A3X92K',
+      macDeviceId: 'mac-123',
+      macPublicKey: 'AAAA',
+    }
+    expect(isQRCodePayloadV2(qr)).toBe(false)
+  })
+
+  it('isQRCodePayloadV2 rejects v2 payloads with empty macPublicKey', () => {
+    const qr = {
+      v: 2,
+      server: 'https://relay.airterm.dev',
+      pairCode: 'A3X92K',
+      macDeviceId: 'mac-123',
+      macPublicKey: '',
+    } as QRCodePayload
+    expect(isQRCodePayloadV2(qr)).toBe(false)
   })
 })
