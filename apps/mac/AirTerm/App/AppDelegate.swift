@@ -3,6 +3,11 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
     private var pairingWindow: PairingWindow?
+    /// Live takeover sessions keyed by phoneDeviceId. The window keeps
+    /// running after PairingWindow is dismissed; tearing one down only
+    /// happens when the phone says bye, the WS dies, or the user
+    /// explicitly stops it from a Settings UI (later phase).
+    private var takeoverSessions: [String: TakeoverSession] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Run the Noise IK self-test at launch in DEBUG builds. This catches
@@ -71,10 +76,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 macName: macName
             )
             pairingWindow = PairingWindow(pairingService: service)
+            pairingWindow?.onPairingHandoff = { [weak self] handoff in
+                self?.startTakeover(handoff: handoff)
+            }
         }
         pairingWindow?.center()
         pairingWindow?.makeKeyAndOrderFront(nil)
         pairingWindow?.startPairing()
+    }
+
+    /// Called from PairingWindow when the Noise IK handshake completes.
+    /// Spins up a long-lived `TakeoverSession` bound to the active
+    /// terminal's session, keyed by phone device id so we can tear it
+    /// down later if the user decides to forget that phone. The relay
+    /// connection PairingWindow opened is transferred to us — the
+    /// panel may close without taking the WS with it.
+    private func startTakeover(handoff: PairingHandoff) {
+        guard let terminalSession = self.window?.activeTerminalSession else {
+            DebugLog.log("AppDelegate.startTakeover: no active terminal session")
+            handoff.relay.disconnect()
+            return
+        }
+
+        // Replace any prior session with this same phone (re-pairing
+        // case). Safe — TakeoverSession.deinit stops the timer and
+        // disconnects its relay.
+        if let existing = takeoverSessions.removeValue(forKey: handoff.phoneDeviceId) {
+            existing.stop(reason: "replaced")
+        }
+
+        let session = TakeoverSession(
+            relay: handoff.relay,
+            phoneDeviceId: handoff.phoneDeviceId,
+            terminalSession: terminalSession,
+            transport: handoff.transport
+        )
+        session.onEnded = { [weak self] _ in
+            self?.takeoverSessions.removeValue(forKey: handoff.phoneDeviceId)
+        }
+        session.start()
+        takeoverSessions[handoff.phoneDeviceId] = session
     }
 
     private func installMainMenu() {

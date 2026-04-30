@@ -44,8 +44,11 @@ final class TakeoverChannel {
     private let send: NoiseCipherState
     private let receive: NoiseCipherState
     private let sendSignaling: (_ encryptedFrame: [String: Any]) -> Void
-    private let onFrame: (TakeoverFrame) -> Void
-    private let onError: (ChannelError) -> Void
+    /// Mutable so a long-lived owner (TakeoverSession) can install a
+    /// `[weak self]` handler after construction without a fragile
+    /// init-order dance.
+    var onFrame: (TakeoverFrame) -> Void
+    var onError: (ChannelError) -> Void
     private var outboundSeq = 0
     private var lastIncomingSeq = -1
     private(set) var isClosed = false

@@ -13,8 +13,26 @@ import CoreImage.CIFilterBuiltins
 /// Why an NSPanel and not a sheet: the user might want to keep an eye
 /// on the QR while looking at their phone — sheets attach to one
 /// window and disappear on focus loss; NSPanel floats and stays put.
+/// Shape passed to AppDelegate the moment the Noise IK handshake
+/// completes. Carries the warm WS connection (so the takeover session
+/// keeps using the same socket) plus the post-handshake transport
+/// state. AppDelegate decides what to do with it.
+struct PairingHandoff {
+    let relay: RelayClient
+    let phoneDeviceId: String
+    let phoneName: String
+    let transport: NoiseHandshakeState.Result
+}
+
 final class PairingWindow: NSPanel {
     private let pairingService: PairingService
+    /// Set by AppDelegate; called once when the Noise handshake
+    /// finishes successfully so the long-lived takeover session can
+    /// inherit the warm WS.
+    var onPairingHandoff: ((PairingHandoff) -> Void)?
+    /// Set after a successful handshake hand-off so the panel's close
+    /// path knows to leave the WS alone.
+    private var didHandOffRelay = false
     private let qrImageView = NSImageView()
     private let pairCodeLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
@@ -254,7 +272,8 @@ final class PairingWindow: NSPanel {
 
     /// Final success path. Persists the paired phone (now we have its
     /// long-lived static public key, which the responder learned during
-    /// stage 1) and updates the panel.
+    /// stage 1) and hands the warm WS + transport keys to AppDelegate
+    /// so a long-lived takeover session can take over the connection.
     private func finishPairing(handshakeHash: Data) {
         let nameForUI = phoneName ?? "phone"
         statusLabel.stringValue = "Securely paired with \(nameForUI)!"
@@ -270,6 +289,24 @@ final class PairingWindow: NSPanel {
         }
         if let token = lastPairInfo?.token {
             PairingStore.saveMacToken(token)
+        }
+
+        // Hand off the warm relay + transport keys so the takeover
+        // session can keep streaming after the panel closes.
+        if let phoneDeviceId,
+           let relay = self.relay,
+           let result = self.noiseResult,
+           let handler = onPairingHandoff {
+            didHandOffRelay = true
+            handler(PairingHandoff(
+                relay: relay,
+                phoneDeviceId: phoneDeviceId,
+                phoneName: nameForUI,
+                transport: result
+            ))
+            // Drop our own reference so deinit / closeClicked don't
+            // tear down the WS the takeover session now owns.
+            self.relay = nil
         }
     }
 

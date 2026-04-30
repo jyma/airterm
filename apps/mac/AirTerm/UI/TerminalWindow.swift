@@ -19,6 +19,14 @@ final class TerminalWindow: NSWindow, TabBarViewDelegate {
     private var statusBar: StatusBarView!
     private var paneHost: NSView!
 
+    /// The active pane's PTY-backed session, or nil if no panes exist.
+    /// Phase-4 takeover binds itself to whichever session is focused at
+    /// the moment the user finishes pairing — that's the shell the
+    /// phone wants to mirror.
+    var activeTerminalSession: TerminalSession? {
+        activeTerminalView?.session
+    }
+
     private weak var activeTerminalView: TerminalView? {
         didSet {
             oldValue?.isActive = false
