@@ -244,11 +244,18 @@ open apps/mac/build/AirTerm.app
   - `Services/KeyStore.swift`:CryptoKit Curve25519 X25519 静态身份生成 + UserDefaults 持久化(production 应迁 Keychain)
   - `Models/PairInfo.swift`:QRCodePayload 重做成 v2(macPublicKey + v=2 + encodedJSON)
   - `Services/PairingService.swift`:加载/生成静态 keypair,`macPublicKeyBase64` API,initiatePairing 加 URL/HTTP 校验
+- ✅ **P3-4a** Web Vite + React pair 骨架(`6a968ad`)
+  - `index.html` / `main.tsx` / `App.tsx`:React 19 + BrowserRouter,3 路由 `/` `/pair` `/paired`
+  - `lib/pair-client.ts`:`parseQRPayload`(只接受 v2,拒 v1 / 非 http(s) / 空 pubkey) + `completePair`(类型化 HTTP 错误)+ 浏览器 device id 持久化
+  - `components/QRScanner.tsx`:`BarcodeDetector` + `getUserMedia` 扫码,无第三方库依赖,environment camera 默认
+  - `pages/PairPage.tsx`:scan / manual 模式切换,manual JSON 表单走相同 parser
+  - `pages/PairedPage.tsx`:Mac 名称 / 设备 id / 时间 + Forget 按钮
+  - drive-by:修 `ws-client.ts` 旧 `BusinessMessage` 失效 import(改为本地 `type BusinessMessage = unknown`)
+  - 5 个新测试通过,`vite build` 干净(240KB / 77KB gzipped)
 
 **待办**:
 - ⏳ **P3-3b** Mac Noise IK responder + 信令握手驱动(NoiseSession.swift,~200 行;PairingService 加 awaitPairCompleted/handleSignalingFrame/sendOffer/sendIce 接口)
-- ⏳ **P3-2(裁剪)** server 旧 dist/ 残留(messages.* 几个文件)清理(可推迟到 v1 GA)
-- ⏳ **P3-4** apps/web Vite + React 骨架 + pair 页面 + QR 扫描(big chunk)
+- ⏳ **P3-4b** Web Noise IK initiator(浏览器 X25519 via WebCrypto + 与 Mac 共享 NoiseSession 算法)
 - ⏳ **P3-5** 端到端联调:Mac 菜单"配对新设备" → QR → 手机扫码 → Noise 握手完成 → 双端"配对成功"
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
