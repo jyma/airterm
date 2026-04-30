@@ -1,0 +1,25 @@
+[package]
+name = "airprompt"
+version = "0.1.0"
+edition = "2021"
+description = "AirTerm's native shell prompt renderer — Starship-grade visuals, Rust-fast"
+publish = false
+
+[[bin]]
+name = "airprompt"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+anyhow = "1"
+dirs = "5"
+
+[profile.release]
+# AirTerm calls airprompt on every shell prompt, so binary size and startup
+# overhead matter. lto + strip drops the universal binary into the ~1MB range.
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"
