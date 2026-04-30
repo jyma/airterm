@@ -4,14 +4,22 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MAC_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$(dirname "$MAC_DIR")")"
 APP_NAME="AirTerm"
 BUNDLE_ID="com.airterm.app"
 APP_DIR="$MAC_DIR/build/${APP_NAME}.app"
+AIRPROMPT_DIR="$REPO_ROOT/tools/airprompt"
 
 cd "$MAC_DIR"
 
-echo "Building..."
+echo "Building Swift target..."
 swift build -c debug
+
+# airprompt is the Rust-side companion that renders the shell prompt. We
+# bundle it inside Resources/bin/ so the Mac app can hand its absolute path
+# to PTY-spawned shells without depending on a system-wide install.
+echo "Building airprompt (Rust)..."
+(cd "$AIRPROMPT_DIR" && cargo build --release --quiet)
 
 echo "Creating app bundle..."
 rm -rf "$APP_DIR"
@@ -52,6 +60,11 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
 </dict>
 </plist>
 PLIST
+
+# Ship airprompt inside the bundle (Resources/bin/airprompt).
+mkdir -p "$APP_DIR/Contents/Resources/bin"
+cp "$AIRPROMPT_DIR/target/release/airprompt" "$APP_DIR/Contents/Resources/bin/airprompt"
+codesign --force --sign - "$APP_DIR/Contents/Resources/bin/airprompt"
 
 # Ad-hoc sign so TCC recognizes it stably
 codesign --force --sign - "$APP_DIR"

@@ -34,10 +34,20 @@ struct Config: Equatable {
         var opacity: Double = 1.0   // window-level alphaValue, 0..1
     }
 
+    struct Shell: Equatable {
+        /// When true, AirTerm hands zsh PTYs a ZDOTDIR pointing at a shim
+        /// .zshrc that sources the user's real zshrc and layers airprompt
+        /// hooks on top. The shim itself yields to starship / p10k /
+        /// oh-my-zsh setups so existing prompts win — this flag is
+        /// effectively "lay airprompt down when nobody else owns PROMPT".
+        var injectPrompt: Bool = true
+    }
+
     var font = Font()
     var theme = ThemeRef()
     var cursor = Cursor()
     var window = Window()
+    var shell = Shell()
 
     static let `default` = Config()
 
@@ -77,6 +87,13 @@ struct Config: Equatable {
     [window]
     padding = 2
     opacity = 1.0
+
+    [shell]
+    # When true, zsh PTYs get a Starship-grade prompt rendered by airprompt
+    # — without editing your ~/.zshrc. Set to false to keep your current
+    # prompt setup untouched. Users with starship / p10k / oh-my-zsh
+    # already configured will keep their existing prompt either way.
+    inject_prompt = true
     """
 
     static func load(from url: URL = Config.userConfigURL) -> Config {
@@ -114,6 +131,9 @@ struct Config: Equatable {
             if let p = window["padding"] as? Int { config.window.padding = Double(p) }
             if let o = window["opacity"] as? Double { config.window.opacity = o }
             if let o = window["opacity"] as? Int { config.window.opacity = Double(o) }
+        }
+        if let shell = dict["shell"] as? [String: Any] {
+            if let inject = shell["inject_prompt"] as? Bool { config.shell.injectPrompt = inject }
         }
         return config
     }

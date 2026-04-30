@@ -39,9 +39,27 @@ final class PTY: @unchecked Sendable {
         let cmdC = strdup(command)!
         let cwdC: UnsafeMutablePointer<CChar>? = cwd.map { strdup($0) }
 
-        // Build argv: [command, ...arguments, NULL]
+        // airprompt injection setup: zsh gets ZDOTDIR (works under any -l/-i
+        // flags); bash gets `--rcfile <shim>` and its `-l` stripped so the
+        // shim actually wins over ~/.bash_profile. The shim re-sources the
+        // user's real rc files first so we don't break their setup.
+        let injectPrompt = ConfigStore.shared.config.shell.injectPrompt
+        let shellName = (command as NSString).lastPathComponent
+        let isZsh = shellName == "zsh"
+        let isBash = shellName == "bash"
+        let scaffold: AirpromptShell.Scaffolding? = injectPrompt
+            ? AirpromptShell.prepareScaffolding()
+            : nil
+
+        // Build argv: [command, ...effectiveArgs, NULL]
+        var effectiveArgs = arguments
+        if isBash, let s = scaffold {
+            effectiveArgs.removeAll { $0 == "-l" || $0 == "--login" }
+            effectiveArgs.append("--rcfile")
+            effectiveArgs.append(s.zdotdir.appendingPathComponent(".bashrc").path)
+        }
         var argPtrs: [UnsafeMutablePointer<CChar>?] = [strdup(command)!]
-        for arg in arguments {
+        for arg in effectiveArgs {
             argPtrs.append(strdup(arg)!)
         }
         argPtrs.append(nil)
@@ -61,6 +79,13 @@ final class PTY: @unchecked Sendable {
         // either to restore no-colour output.
         if envDict["CLICOLOR"] == nil { envDict["CLICOLOR"] = "1" }
         if envDict["LSCOLORS"] == nil { envDict["LSCOLORS"] = "exfxcxdxbxegedabagacad" }
+
+        if let s = scaffold {
+            if isZsh { envDict["ZDOTDIR"] = s.zdotdir.path }
+            let existingPath = envDict["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+            envDict["PATH"] = "\(s.binDir.path):\(existingPath)"
+        }
+
         for (key, value) in environment {
             envDict[key] = value
         }
