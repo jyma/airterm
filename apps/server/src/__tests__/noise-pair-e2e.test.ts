@@ -166,6 +166,81 @@ describe('Noise IK pair E2E (server + simulated Mac + simulated Phone)', () => {
     const pongRecovered = phoneFinal.receive.decrypt(pong)
     expect(new TextDecoder().decode(pongRecovered)).toBe('pong-1')
 
+    // ---- Takeover frames over the live relay ----
+    //
+    // After the handshake, the same WS becomes a Phase-4 data channel
+    // for screen + input frames. We push one frame each direction
+    // (Mac → Phone screen snapshot; Phone → Mac input event) through
+    // the real Noise transport CipherStates and verify both sides
+    // decode the typed `TakeoverFrame` they expect.
+
+    const macTakeoverOutbox: unknown[] = []
+    const phoneTakeoverOutbox: unknown[] = []
+    let macSendCounter = 0
+    let phoneSendCounter = 0
+
+    function sendEncryptedFrom(
+      ws: WebSocket,
+      from: string,
+      to: string,
+      sender: 'mac' | 'phone',
+      cipher: ReturnType<typeof macFinal.send.encrypt> extends Uint8Array ? Uint8Array : never,
+      seq: number
+    ): void {
+      sendRelay(ws, from, to, {
+        kind: 'encrypted',
+        seq,
+        ciphertext: bufToB64(cipher),
+      })
+      if (sender === 'mac') macTakeoverOutbox.push(seq)
+      else phoneTakeoverOutbox.push(seq)
+    }
+
+    // Mac → Phone: screen snapshot
+    const screenFrame = {
+      kind: 'screen_snapshot',
+      seq: 0,
+      rows: 1,
+      cols: 5,
+      cells: [
+        [{ ch: 'h' }, { ch: 'e' }, { ch: 'l' }, { ch: 'l' }, { ch: 'o' }],
+      ],
+      cursor: { row: 0, col: 5, visible: true },
+    }
+    const screenPlain = new TextEncoder().encode(JSON.stringify(screenFrame))
+    const screenCipher = macFinal.send.encrypt(screenPlain)
+    sendEncryptedFrom(macWs, 'mac-e2e', 'phone-e2e', 'mac', screenCipher, macSendCounter++)
+
+    const screenInbound = await waitForEncryptedFrame(phoneInbox)
+    const screenPlainRecovered = phoneFinal.receive.decrypt(
+      b64ToBuf(screenInbound.ciphertext as string)
+    )
+    const screenDecoded = JSON.parse(
+      new TextDecoder().decode(screenPlainRecovered)
+    ) as typeof screenFrame
+    expect(screenDecoded.kind).toBe('screen_snapshot')
+    expect(screenDecoded.cells[0].map((c) => c.ch).join('')).toBe('hello')
+
+    // Phone → Mac: input event
+    const inputFrame = {
+      kind: 'input_event',
+      seq: 0,
+      bytes: btoa('ls\r'),
+    }
+    const inputPlain = new TextEncoder().encode(JSON.stringify(inputFrame))
+    const inputCipher = phoneFinal.send.encrypt(inputPlain)
+    sendEncryptedFrom(phoneWs, 'phone-e2e', 'mac-e2e', 'phone', inputCipher, phoneSendCounter++)
+
+    const inputInbound = await waitForEncryptedFrame(macInbox)
+    const inputPlainRecovered = macFinal.receive.decrypt(
+      b64ToBuf(inputInbound.ciphertext as string)
+    )
+    const inputDecoded = JSON.parse(
+      new TextDecoder().decode(inputPlainRecovered)
+    ) as typeof inputFrame
+    expect(inputDecoded.kind).toBe('input_event')
+    expect(atob(inputDecoded.bytes)).toBe('ls\r')
+
     macWs.close()
     phoneWs.close()
   })
@@ -240,6 +315,31 @@ function sendRelay(
   const payload = btoa(JSON.stringify(sequenced))
   const envelope = { type: 'relay', from, to, ts: Date.now(), payload }
   ws.send(JSON.stringify(envelope))
+}
+
+async function waitForEncryptedFrame(
+  inbox: unknown[],
+  timeoutMs = 3000
+): Promise<Record<string, unknown>> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    for (const m of inbox) {
+      if (!isObject(m)) continue
+      if ((m as { type?: string }).type !== 'relay') continue
+      const payload = (m as { payload?: string }).payload
+      if (typeof payload !== 'string') continue
+      try {
+        const seq = JSON.parse(atob(payload)) as {
+          message?: { kind?: string }
+        }
+        if (seq.message?.kind === 'encrypted') {
+          return seq.message as Record<string, unknown>
+        }
+      } catch { /* skip */ }
+    }
+    await new Promise((r) => setTimeout(r, 10))
+  }
+  throw new Error('waitForEncryptedFrame timed out')
 }
 
 async function waitForRelayMessage(
