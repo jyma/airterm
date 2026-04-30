@@ -39,6 +39,16 @@ final class PairingService: @unchecked Sendable {
     /// The stable Mac device id sent on every pair-init / WS handshake.
     var deviceId: String { macDeviceId }
 
+    /// Raw 32-byte X25519 keypair shape NoiseHandshakeState/NoisePairResponder
+    /// expects. Wraps the same private key the QR pubkey is derived from
+    /// so the phone-scanned key matches the one the Mac responds with.
+    var staticNoiseKeyPair: NoiseKeyPair {
+        NoiseKeyPair(
+            privateKey: identity.privateKey.rawRepresentation,
+            publicKey: identity.publicKeyData
+        )
+    }
+
     /// HTTP /api/pair/init. Returns the relay-allocated short pair code,
     /// the Mac JWT token (used to open the WS), and a unix timestamp at
     /// which the pair code expires.

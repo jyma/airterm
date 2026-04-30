@@ -30,6 +30,25 @@ final class PairingWindow: NSPanel {
     /// Snapshot of the pair-init result so the WS-pair handler can format
     /// status messages without re-reading the panel's UI labels.
     private var lastPairInfo: PairInfo?
+    /// Phone device id learned from the server's `pair_completed`
+    /// notification. Used as the destination on every Noise / signaling
+    /// frame the Mac sends back through the relay.
+    private var phoneDeviceId: String?
+    /// Friendly phone name from the same notification — kept around so
+    /// the persisted PairedPhone record gets the right label even if the
+    /// Noise handshake completes after the panel is dismissed.
+    private var phoneName: String?
+    /// IK responder driving the Noise handshake. Created the moment we
+    /// learn there's a phone to talk to (`pair_completed` arrives or a
+    /// stage-1 frame shows up first, whichever wins the race). nil after
+    /// a successful handshake — transport CipherStates would live in a
+    /// dedicated session manager once the takeover surface lands.
+    private var noiseResponder: NoisePairResponder?
+    /// Transport keys returned by the responder after stage 2. Held here
+    /// so the panel can hand them off to whatever consumes the post-pair
+    /// session (currently just persisted-marker; future: takeover
+    /// surface).
+    private var noiseResult: NoiseHandshakeState.Result?
 
     init(pairingService: PairingService) {
         self.pairingService = pairingService
@@ -132,32 +151,125 @@ final class PairingWindow: NSPanel {
     }
 
     private func handleRelayMessage(_ message: [String: Any]) {
+        // Server-pushed pair_completed (no `kind`, has `type`) and signaling
+        // frames forwarded from the phone (`kind: "noise"|"encrypted"`)
+        // arrive on the same callback. Branch on shape.
+        if let kind = message["kind"] as? String {
+            handleSignalingMessage(kind: kind, body: message)
+            return
+        }
         guard let type = message["type"] as? String else { return }
         switch type {
         case "pair_completed":
-            let phoneName = (message["phoneName"] as? String) ?? "phone"
-            let phoneDeviceId = (message["phoneDeviceId"] as? String) ?? ""
-            let phonePublicKey = message["phonePublicKey"] as? String
-            statusLabel.stringValue = "Paired with \(phoneName)!"
-            helperLabel.stringValue = "You can close this panel."
-            closeButton.title = "Done"
-            // Persist so the next launch already knows about this phone.
-            // We persist even if the message lacks fields we would prefer
-            // (defensive defaults above) — better to record a partial
-            // entry than lose the pairing history entirely.
-            if !phoneDeviceId.isEmpty {
-                PairingStore.addOrUpdate(PairedPhone(
-                    deviceId: phoneDeviceId,
-                    name: phoneName,
-                    pairedAt: Date(),
-                    publicKey: phonePublicKey
-                ))
-            }
-            if let token = lastPairInfo?.token {
-                PairingStore.saveMacToken(token)
-            }
+            handlePairCompleted(message)
         default:
             break
+        }
+    }
+
+    /// Server learned the phone scanned the QR + POSTed pair-complete.
+    /// Now we have a phone deviceId/name to talk to and can lazy-create
+    /// the Noise responder. We DON'T mark the pairing successful yet —
+    /// "Paired" only after the Noise handshake succeeds, otherwise an
+    /// MITM could land here without owning the responder static.
+    private func handlePairCompleted(_ message: [String: Any]) {
+        let pName = (message["phoneName"] as? String) ?? "phone"
+        let pId   = (message["phoneDeviceId"] as? String) ?? ""
+        self.phoneName = pName
+        self.phoneDeviceId = pId.isEmpty ? nil : pId
+        statusLabel.stringValue = "Securing channel with \(pName)…"
+        // If a stage-1 Noise frame arrived BEFORE pair_completed (rare
+        // race — the phone POSTs HTTP and connects WS in parallel), the
+        // responder might already exist. Don't double-create.
+        if noiseResponder == nil {
+            ensureNoiseResponder()
+        }
+    }
+
+    /// Routes signaling frames from the phone. Pre-handshake we expect
+    /// only stage-1 Noise; post-handshake we'd expect EncryptedFrames
+    /// (not yet wired — that's the takeover surface in a later phase).
+    private func handleSignalingMessage(kind: String, body: [String: Any]) {
+        switch kind {
+        case "noise":
+            ensureNoiseResponder()
+            guard let responder = noiseResponder else { return }
+            guard let stage = body["stage"] as? Int,
+                  let payload = body["noisePayload"] as? String else {
+                DebugLog.log("PairingWindow: malformed Noise frame")
+                return
+            }
+            do {
+                try responder.processIncomingFrame(.init(
+                    stage: stage,
+                    noisePayloadBase64: payload
+                ))
+                if let result = responder.transportResult {
+                    noiseResult = result
+                    finishPairing(handshakeHash: result.handshakeHash)
+                }
+            } catch {
+                statusLabel.stringValue = "Pairing failed: \(error)"
+            }
+        case "encrypted":
+            // Reserved for the takeover surface — phase 4+ will have
+            // CipherStates handy here. For now we just log and drop.
+            DebugLog.log("PairingWindow: dropping pre-takeover encrypted frame")
+        default:
+            break
+        }
+    }
+
+    /// Lazy-creates the Noise IK responder using the Mac's static
+    /// keypair. Idempotent — repeated calls (e.g. if a stage-1 frame
+    /// races pair_completed) return early. The `sendFrame` callback
+    /// wraps stage-2 in a SignalingMessage and posts it through the
+    /// relay's sequenced-message envelope.
+    private func ensureNoiseResponder() {
+        guard noiseResponder == nil else { return }
+        do {
+            let responder = try NoisePairResponder(
+                macStatic: pairingService.staticNoiseKeyPair
+            ) { [weak self] stage, noisePayloadBase64 in
+                self?.sendNoiseFrame(stage: stage, noisePayloadBase64: noisePayloadBase64)
+            }
+            noiseResponder = responder
+        } catch {
+            DebugLog.log("PairingWindow: Noise responder init failed: \(error)")
+            statusLabel.stringValue = "Pairing failed to start: \(error)"
+        }
+    }
+
+    private func sendNoiseFrame(stage: Int, noisePayloadBase64: String) {
+        guard let phoneDeviceId else {
+            DebugLog.log("PairingWindow: tried to send Noise frame before knowing phone deviceId")
+            return
+        }
+        relay?.sendRelay(to: phoneDeviceId, payload: [
+            "kind": "noise",
+            "stage": stage,
+            "noisePayload": noisePayloadBase64,
+        ])
+    }
+
+    /// Final success path. Persists the paired phone (now we have its
+    /// long-lived static public key, which the responder learned during
+    /// stage 1) and updates the panel.
+    private func finishPairing(handshakeHash: Data) {
+        let nameForUI = phoneName ?? "phone"
+        statusLabel.stringValue = "Securely paired with \(nameForUI)!"
+        helperLabel.stringValue = "Channel binding: \(handshakeHash.prefix(4).map { String(format: "%02x", $0) }.joined())…"
+        closeButton.title = "Done"
+        if let phoneDeviceId, let phonePublicKey = noiseResponder?.learnedInitiatorStaticPublicKey {
+            PairingStore.addOrUpdate(PairedPhone(
+                deviceId: phoneDeviceId,
+                name: nameForUI,
+                pairedAt: Date(),
+                publicKey: phonePublicKey.base64EncodedString()
+            ))
+        }
+        if let token = lastPairInfo?.token {
+            PairingStore.saveMacToken(token)
         }
     }
 
