@@ -2,10 +2,22 @@ import AppKit
 
 enum FocusDirection { case left, right, up, down }
 
-final class TerminalWindow: NSWindow {
-    private var rootPane: Pane!
-    private var container: PaneContainerView!
+/// Single NSWindow that hosts an arbitrary number of `Tab`s. We disable
+/// macOS's native tabbing (`tabbingMode = .disallowed`) and render our own
+/// tab strip via `TabBarView`, mirroring iTerm2 / Wezterm / Ghostty's modern
+/// "one window, many tabs" model. Each tab owns an independent pane tree;
+/// switching tabs reparents the existing container — sessions and Metal
+/// renderers keep running across switches.
+final class TerminalWindow: NSWindow, TabBarViewDelegate {
+    private var tabs: [Tab] = []
+    private var activeTabIndex: Int = 0
+    private var activeTab: Tab? {
+        tabs.indices.contains(activeTabIndex) ? tabs[activeTabIndex] : nil
+    }
+
+    private var tabBar: TabBarView!
     private var statusBar: StatusBarView!
+    private var paneHost: NSView!
 
     private weak var activeTerminalView: TerminalView? {
         didSet {
@@ -14,26 +26,35 @@ final class TerminalWindow: NSWindow {
             // so the status bar reflects exactly the active session's cwd.
             oldValue?.session.onCwdChange = nil
             activeTerminalView?.isActive = true
-            wireActiveCwd()
+            // Mirror onto the active tab so subsequent tab switches restore
+            // focus to the same pane the user last interacted with.
+            if let tv = activeTerminalView, let tab = activeTab {
+                tab.activeTerminalView = tv
+            }
+            wireActiveSession()
         }
     }
 
-    /// Attach the active session's OSC 7 cwd stream to the status bar.
-    /// Re-pushes the last-known cwd immediately so switching panes feels
-    /// instantaneous instead of waiting for the next prompt.
-    private func wireActiveCwd() {
-        guard let tv = activeTerminalView, let bar = statusBar else { return }
-        tv.session.onCwdChange = { [weak bar] path in
-            DispatchQueue.main.async { bar?.updateCwd(path) }
+    /// Attach the active session's OSC 7 cwd stream to the status bar AND
+    /// the tab bar so both surfaces refresh whenever the user `cd`s.
+    private func wireActiveSession() {
+        guard let tv = activeTerminalView else { return }
+        tv.session.onCwdChange = { [weak self] path in
+            DispatchQueue.main.async {
+                self?.statusBar?.updateCwd(path)
+                self?.refreshTabBarTitles()
+            }
         }
-        bar.updateCwd(tv.session.cwd)
+        statusBar?.updateCwd(tv.session.cwd)
+        refreshTabBarTitles()
     }
 
-    /// Flip every leaf's `hasSiblings` flag after a pane-tree mutation so the
-    /// focus border only renders when there's more than one pane. Also keeps
-    /// the status bar's pane-count badge in sync.
+    /// Flip every leaf's `hasSiblings` flag after a pane-tree mutation in the
+    /// active tab so the focus dim only kicks in when there's more than one
+    /// pane. Also keeps the status bar's pane-count badge in sync.
     private func syncPaneSiblings() {
-        let leaves = rootPane.leaves
+        guard let tab = activeTab else { return }
+        let leaves = tab.rootPane.leaves
         let multiple = leaves.count > 1
         for leaf in leaves {
             leaf.terminalView?.hasSiblings = multiple
@@ -60,16 +81,17 @@ final class TerminalWindow: NSWindow {
     }
 
     /// Reserved height (in points) at the top of the content area so the
-    /// traffic-light buttons and (when present) the system tab bar don't
-    /// overlap the terminal grid. 28pt matches macOS's stock title-bar height.
-    static let titleBarInset: CGFloat = 28
+    /// traffic-light buttons don't overlap the terminal grid. The custom
+    /// tab bar fills exactly this region — its leading inset (`80pt`) keeps
+    /// chip rendering clear of the traffic-light cluster.
+    static let titleBarInset: CGFloat = TabBarView.height
 
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
-            // .fullSizeContentView lets us paint the theme background under the
-            // titlebar so traffic-lights look "floating" Ghostty-style, while a
-            // 28pt top inset keeps the terminal grid clear of them.
+            // .fullSizeContentView lets us paint the theme background under
+            // the titlebar so traffic-lights look "floating" Ghostty-style;
+            // the custom tab bar covers the same vertical strip.
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -79,10 +101,11 @@ final class TerminalWindow: NSWindow {
         titlebarAppearsTransparent = true
         isMovableByWindowBackground = false
         minSize = NSSize(width: 480, height: 320)
-        tabbingMode = .preferred
-        tabbingIdentifier = "airterm.tab-group"
+        // We render our own tab strip; opt out of the macOS-native one so it
+        // doesn't double-up underneath ours.
+        tabbingMode = .disallowed
         // ARC manages window lifetime; AppKit's legacy auto-release on close
-        // otherwise double-releases the window (crashes on tab close).
+        // otherwise double-releases the window.
         isReleasedWhenClosed = false
 
         applyTheme(ConfigStore.shared.theme)
@@ -95,21 +118,14 @@ final class TerminalWindow: NSWindow {
 
         guard let content = contentView else { return }
 
-        let firstTV = makeTerminalView(frame: .zero)
-        let firstLeaf = Pane.leaf(firstTV)
-        self.rootPane = firstLeaf
-        self.activeTerminalView = firstTV
-
-        // macOS y-up coords: y=0 is bottom of contentView. Status bar pinned
-        // to the bottom, pane container fills the middle, traffic lights
-        // float in the top-28pt strip we leave clear.
-        // We use autoresizingMask (not auto-layout) so subview intrinsic
-        // sizes never bubble up to NSWindow's fittingSize and collapse the
-        // frame to ~110pt the way auto-laid-out NSStackView children do.
+        // macOS y-up: status bar pinned to bottom, tab bar to top, pane host
+        // fills the middle strip. Autoresizing masks (not auto-layout) so
+        // subview intrinsic sizes never bubble up to NSWindow.fittingSize.
         let cw = content.bounds.width
         let ch = content.bounds.height
         let statusH = StatusBarView.height
-        let titleH = Self.titleBarInset
+        let tabH = TabBarView.height
+        let hostH = ch - statusH - tabH
 
         let statusBar = StatusBarView(
             frame: NSRect(x: 0, y: 0, width: cw, height: statusH)
@@ -118,15 +134,24 @@ final class TerminalWindow: NSWindow {
         content.addSubview(statusBar)
         self.statusBar = statusBar
 
-        let container = PaneContainerView(
-            frame: NSRect(x: 0, y: statusH, width: cw, height: ch - statusH - titleH),
-            root: firstLeaf
-        )
-        container.autoresizingMask = [.width, .height]
-        content.addSubview(container)
-        self.container = container
+        let host = NSView(frame: NSRect(x: 0, y: statusH, width: cw, height: hostH))
+        host.autoresizingMask = [.width, .height]
+        host.wantsLayer = true
+        content.addSubview(host)
+        self.paneHost = host
 
-        syncPaneSiblings()
+        let tabBar = TabBarView(
+            frame: NSRect(x: 0, y: ch - tabH, width: cw, height: tabH)
+        )
+        tabBar.autoresizingMask = [.width, .minYMargin]
+        tabBar.delegate = self
+        content.addSubview(tabBar)
+        self.tabBar = tabBar
+
+        // First tab.
+        let firstTab = makeNewTab(initialFrame: host.bounds)
+        tabs.append(firstTab)
+        installActiveTab()
 
         // Block macOS state restoration (which silently clamps our frame to
         // a previous session's smaller size) and force the initial frame.
@@ -136,10 +161,19 @@ final class TerminalWindow: NSWindow {
             NSRect(x: 100, y: 100, width: 1200, height: 800),
             display: false
         )
+    }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.makeFirstResponder(firstTV)
-        }
+    // MARK: - Tab construction
+
+    /// Build a fresh terminal view + leaf + pane container, packaged as a Tab.
+    /// Caller decides whether to install it (via `installActiveTab()`) or just
+    /// keep it parked.
+    private func makeNewTab(initialFrame: NSRect) -> Tab {
+        let tv = makeTerminalView(frame: .zero)
+        let leaf = Pane.leaf(tv)
+        let container = PaneContainerView(frame: initialFrame, root: leaf)
+        container.autoresizingMask = [.width, .height]
+        return Tab(rootPane: leaf, container: container)
     }
 
     private func makeTerminalView(frame: NSRect) -> TerminalView {
@@ -150,6 +184,50 @@ final class TerminalWindow: NSWindow {
             self?.activeTerminalView = tv
         }
         return tv
+    }
+
+    /// Reparents the active tab's pane container into `paneHost`, syncs the
+    /// tab bar / status bar / focus pane, and makes the tab's saved active
+    /// terminal view first responder. Idempotent — safe to call after every
+    /// tab tree mutation.
+    private func installActiveTab() {
+        guard let tab = activeTab else { return }
+
+        // Detach any other tab's container first so only one renders.
+        for (i, other) in tabs.enumerated() where i != activeTabIndex {
+            if other.paneContainer.superview === paneHost {
+                other.paneContainer.removeFromSuperview()
+            }
+        }
+
+        // Attach this tab's container if it isn't already mounted.
+        if tab.paneContainer.superview !== paneHost {
+            tab.paneContainer.frame = paneHost.bounds
+            paneHost.addSubview(tab.paneContainer)
+        }
+
+        // Sync chrome.
+        tabBar.tabs = tabs
+        tabBar.activeIndex = activeTabIndex
+        syncPaneSiblings()
+
+        // Refocus the saved active pane in this tab.
+        let target = tab.activeTerminalView ?? tab.rootPane.leaves.first?.terminalView
+        if let target {
+            DispatchQueue.main.async { [weak self] in
+                self?.makeFirstResponder(target)
+            }
+            self.activeTerminalView = target
+        }
+    }
+
+    /// Cheap update path when only titles / icons change (cwd shifts inside a
+    /// tab). Avoids the chip-recreate cost of `rebuild()`.
+    private func refreshTabBarTitles() {
+        // The TabBarView rebuilds chips when `tabs` is reassigned. Reassign
+        // to the same array literal to trigger didSet — chip count and
+        // identity are unchanged so this is effectively a re-render only.
+        tabBar.tabs = tabs
     }
 
     // MARK: - Menu actions (responder-chain dispatched)
@@ -165,22 +243,88 @@ final class TerminalWindow: NSWindow {
     @objc func focusNextPane(_ sender: Any?) { cycleFocus(forward: true) }
     @objc func focusPreviousPane(_ sender: Any?) { cycleFocus(forward: false) }
 
-    // MARK: - Tabs
+    // MARK: - Tabs (custom — replaces the macOS-native tabbingMode workflow)
 
+    /// ⌘T – append a new tab and select it.
+    @objc func newTab(_ sender: Any?) {
+        addTab()
+    }
+
+    /// Compatibility: the File menu's "New Tab" item still uses the
+    /// `newWindowForTab(_:)` selector for muscle memory; route it to our
+    /// in-window tab path.
     override func newWindowForTab(_ sender: Any?) {
-        let new = TerminalWindow()
-        addTabbedWindow(new, ordered: .above)
-        new.makeKeyAndOrderFront(nil)
+        addTab()
+    }
+
+    private func addTab() {
+        let new = makeNewTab(initialFrame: paneHost.bounds)
+        tabs.append(new)
+        activeTabIndex = tabs.count - 1
+        installActiveTab()
     }
 
     @objc func selectTabByTag(_ sender: Any?) {
         guard let item = sender as? NSMenuItem,
-              let group = tabGroup,
               item.tag >= 0,
-              item.tag < group.windows.count
+              item.tag < tabs.count
         else { return }
-        group.windows[item.tag].makeKeyAndOrderFront(nil)
+        selectTab(at: item.tag)
     }
+
+    override func selectNextTab(_ sender: Any?) {
+        guard tabs.count > 1 else { return }
+        selectTab(at: (activeTabIndex + 1) % tabs.count)
+    }
+
+    override func selectPreviousTab(_ sender: Any?) {
+        guard tabs.count > 1 else { return }
+        selectTab(at: (activeTabIndex + tabs.count - 1) % tabs.count)
+    }
+
+    private func selectTab(at index: Int) {
+        guard tabs.indices.contains(index), index != activeTabIndex else { return }
+        activeTabIndex = index
+        installActiveTab()
+    }
+
+    /// Fully tears down a tab — stops every PTY in its tree, drops the
+    /// container, removes the tab from the array, and either selects a
+    /// neighbour or closes the window if it was the last tab.
+    private func closeTab(at index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let tab = tabs[index]
+        for tv in tab.allTerminalViews {
+            tv.session.stop()
+        }
+        if tab.paneContainer.superview === paneHost {
+            tab.paneContainer.removeFromSuperview()
+        }
+        tabs.remove(at: index)
+
+        if tabs.isEmpty {
+            close()
+            return
+        }
+        activeTabIndex = max(0, min(tabs.count - 1, index <= activeTabIndex ? activeTabIndex - 1 : activeTabIndex))
+        if activeTabIndex < 0 { activeTabIndex = 0 }
+        installActiveTab()
+    }
+
+    // MARK: - TabBarViewDelegate
+
+    func tabBar(_ bar: TabBarView, didSelectTabAt index: Int) {
+        selectTab(at: index)
+    }
+
+    func tabBar(_ bar: TabBarView, didCloseTabAt index: Int) {
+        closeTab(at: index)
+    }
+
+    func tabBarDidRequestNewTab(_ bar: TabBarView) {
+        addTab()
+    }
+
     @objc func focusPaneLeft(_ sender: Any?) { moveFocus(.left) }
     @objc func focusPaneRight(_ sender: Any?) { moveFocus(.right) }
     @objc func focusPaneUp(_ sender: Any?) { moveFocus(.up) }
@@ -189,7 +333,8 @@ final class TerminalWindow: NSWindow {
     // MARK: - Focus navigation
 
     private func cycleFocus(forward: Bool) {
-        let leaves = rootPane.leaves
+        guard let tab = activeTab else { return }
+        let leaves = tab.rootPane.leaves
         guard leaves.count > 1,
               let active = activeTerminalView,
               let idx = leaves.firstIndex(where: { $0.terminalView === active })
@@ -203,9 +348,9 @@ final class TerminalWindow: NSWindow {
     }
 
     private func moveFocus(_ direction: FocusDirection) {
-        guard let active = activeTerminalView else { return }
+        guard let tab = activeTab, let active = activeTerminalView else { return }
         let activeFrame = active.convert(active.bounds, to: nil)
-        let candidates = rootPane.leaves.compactMap(\.terminalView).filter { $0 !== active }
+        let candidates = tab.rootPane.leaves.compactMap(\.terminalView).filter { $0 !== active }
 
         var best: TerminalView?
         var bestDistance = CGFloat.infinity
@@ -239,8 +384,9 @@ final class TerminalWindow: NSWindow {
     }
 
     private func split(_ orientation: SplitOrientation) {
-        guard let active = activeTerminalView,
-              let activeLeaf = rootPane.leaves.first(where: { $0.terminalView === active })
+        guard let tab = activeTab,
+              let active = activeTerminalView,
+              let activeLeaf = tab.rootPane.leaves.first(where: { $0.terminalView === active })
         else { return }
 
         let newTV = makeTerminalView(frame: .zero)
@@ -258,11 +404,11 @@ final class TerminalWindow: NSWindow {
                 let idx = oldParent.children.firstIndex { $0 === activeLeaf } ?? 0
                 oldParent.children[idx] = newSplit
             } else {
-                rootPane = newSplit
+                tab.rootPane = newSplit
             }
         }
 
-        container.setRoot(rootPane)
+        tab.paneContainer.setRoot(tab.rootPane)
         syncPaneSiblings()
         DispatchQueue.main.async { [weak self] in
             self?.makeFirstResponder(newTV)
@@ -270,13 +416,16 @@ final class TerminalWindow: NSWindow {
     }
 
     private func closePane(containing tv: TerminalView) {
-        guard let leaf = rootPane.leaves.first(where: { $0.terminalView === tv }) else { return }
+        guard let tab = activeTab,
+              let leaf = tab.rootPane.leaves.first(where: { $0.terminalView === tv })
+        else { return }
 
         tv.session.stop()
 
         guard let parent = leaf.parent else {
-            // Last pane -> close the window.
-            close()
+            // Last pane in this tab → close the tab. closeTab handles the
+            // last-tab-in-window case by closing the window itself.
+            closeTab(at: activeTabIndex)
             return
         }
 
@@ -289,15 +438,15 @@ final class TerminalWindow: NSWindow {
                 grandparent.children[idx] = only
                 only.parent = grandparent
             } else {
-                rootPane = only
+                tab.rootPane = only
                 only.parent = nil
             }
         }
 
-        container.setRoot(rootPane)
+        tab.paneContainer.setRoot(tab.rootPane)
         syncPaneSiblings()
 
-        if let firstLeaf = rootPane.leaves.first, let newFocus = firstLeaf.terminalView {
+        if let firstLeaf = tab.rootPane.leaves.first, let newFocus = firstLeaf.terminalView {
             activeTerminalView = newFocus
             DispatchQueue.main.async { [weak self] in
                 self?.makeFirstResponder(newFocus)
@@ -305,4 +454,3 @@ final class TerminalWindow: NSWindow {
         }
     }
 }
-
