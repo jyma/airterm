@@ -274,9 +274,10 @@ open apps/mac/build/AirTerm.app
 - ✅ **P3-3b** Mac NoiseSession.swift(`daf86ed`) — 镜像 TS reference,DEBUG 自测在启动时 fail-fast
 - ✅ **P3-4b 基础** phone-identity + publicKeyFromPrivate(`024b260`) — phone X25519 静态身份持久化(IndexedDB)
 - ✅ **P3-Noise-Wire-Web** NoisePairDriver(`86f4c8d`) — 纯逻辑 IK initiator 驱动器,7 测试通过,IO 注入便于换 WS
-- ⏳ **P3-Noise-Wire-Mac** Mac 端 responder driver(对应 Web 端);PairingWindow 收到 stage-1 → 跑 readMessageA/writeMessageB → sendRelay 回 phone
-- ⏳ **P3-Noise-Wire-Final** PairPage 用 NoisePairDriver,WS 接 ws-client.ts,显示 "Secured & Paired"
-- ⏳ **P3-5** E2E:跑起 server,真扫码,验证 Noise 握手通过 + transport 加密双向 work
+- ✅ **P3-Noise-Wire-Mac** NoisePairResponder + PairingWindow 路由(`022f48e`) — Mac 端在 pair_completed / 收到 stage-1 时 lazy-create responder,跑 readMessageA/writeMessageB,sendRelay 回 phone,只在 Noise 完成后才标记 "Securely paired"(MITM 拿了 JWT 也过不了)
+- ✅ **P3-Noise-Wire-Final** Web pair-flow 整合(`bb34746`) — `runPhonePairFlow(rawQR)` 串起 parseQR / completePair / loadOrCreatePhoneIdentity / createWSClient / NoisePairDriver,30s 安全超时,异常路径 WS 必断;PairPage.tsx 一行调用替代旧的 4 步
+- ✅ **drive-by** `packages/crypto/sas.ts` 改用 @noble/hashes 替代 node:crypto(浏览器构建解锁)
+- ⏳ **P3-5** E2E:跑起 server,真扫码,验证 Noise 握手通过 + transport 加密双向 work(下一刀)
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
