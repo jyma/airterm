@@ -38,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ConfigStore.shared.cycleTheme(forward: true)
     }
 
+    @objc func toggleCommandPalette(_ sender: Any?) {
+        CommandPalette.shared.toggle(from: NSApp.keyWindow)
+    }
+
     private func installMainMenu() {
         let mainMenu = NSMenu()
 
@@ -99,6 +103,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
+
+        // Command palette is reachable via Edit > Command Palette so the
+        // ⇧⌘P binding flows through the standard responder chain (no
+        // global event monitor needed; the menu owns the shortcut).
+        let palette = editMenu.addItem(
+            withTitle: "Command Palette",
+            action: #selector(AppDelegate.toggleCommandPalette(_:)),
+            keyEquivalent: "p"
+        )
+        palette.keyEquivalentModifierMask = [.command, .shift]
+        palette.target = self
 
         let viewMenuItem = NSMenuItem()
         let viewMenu = NSMenu(title: "View")
