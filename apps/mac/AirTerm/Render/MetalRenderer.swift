@@ -291,6 +291,25 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             }
         }
 
+        // Prompt-area stripe — a 2pt accent bar at column 0 of every row
+        // from the OSC 133;A marker down through the live cursor row. Subtle
+        // visual anchor for "this is where I'm typing" without the heavy
+        // box-frame look the v0 border had.
+        if let promptStart = snapshot.promptStartRow {
+            let endRow = min(snapshot.rows - 1, max(promptStart, snapshot.cursorRow))
+            let stripeWidth = Float(scaleFactor * 2)  // 2pt in device px
+            let accent = theme.promptColor
+            for row in promptStart...endRow {
+                foregrounds.append(InstanceData(
+                    cellOriginPx: SIMD2<Float>(0, Float(row) * cellH),
+                    atlasOrigin: solidOrigin,
+                    atlasSize: solidSize,
+                    cellSizePx: SIMD2<Float>(stripeWidth, cellH),
+                    color: accent
+                ))
+            }
+        }
+
         // Selection overlay.
         if let sel = selection {
             for row in 0..<snapshot.rows {

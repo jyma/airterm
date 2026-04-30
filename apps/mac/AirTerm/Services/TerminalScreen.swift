@@ -10,6 +10,10 @@ struct TerminalSnapshot {
     let topDocLine: Int         // doc row of viewport[0]
     let scrollbackCount: Int
     let atTail: Bool            // true when viewport hugs the live tail
+    /// Viewport row of the most recent OSC 133;A marker (prompt start),
+    /// or nil when the shell isn't currently in the prompt area or the
+    /// prompt has scrolled out of view.
+    let promptStartRow: Int?
 }
 
 /// VT100/xterm terminal state machine with alternate screen buffer support.
@@ -50,6 +54,13 @@ final class TerminalScreen: @unchecked Sendable {
 
     // SGR state — applied to every printable char written from now on.
     private var currentAttrs = CellAttributes.default
+
+    // OSC 133 prompt-area tracking. `inPromptArea` flips true on A (prompt
+    // start) and false on C (command output start). While true, the rows
+    // spanned by the prompt (from promptStartDocRow to the live cursor) are
+    // decorated with a left-edge accent stripe by the renderer.
+    private var inPromptArea: Bool = false
+    private var promptStartDocRow: Int = 0
 
     // Shell integration callbacks — invoked from the parser thread, so
     // observers should hop to the main queue if they touch UI. Kept as
@@ -195,6 +206,18 @@ final class TerminalScreen: @unchecked Sendable {
         let liveCursorRow = useAltScreen ? altCursorRow : mainCursorRow
         let liveCursorCol = useAltScreen ? altCursorCol : mainCursorCol
         let docCursorRow = sb.count + liveCursorRow
+
+        // Prompt stripe is meaningful only on the main screen and only
+        // while the marker still sits inside the viewport; off-screen or
+        // alt-screen prompts get nil so the renderer skips the pass.
+        let promptStartRow: Int?
+        if inPromptArea && !useAltScreen {
+            let r = promptStartDocRow - topLine
+            promptStartRow = (0..<rows).contains(r) ? r : nil
+        } else {
+            promptStartRow = nil
+        }
+
         return TerminalSnapshot(
             grid: viewport,
             cursorRow: docCursorRow - topLine,
@@ -203,7 +226,8 @@ final class TerminalScreen: @unchecked Sendable {
             cols: cols,
             topDocLine: topLine,
             scrollbackCount: sb.count,
-            atTail: atTail
+            atTail: atTail,
+            promptStartRow: promptStartRow
         )
     }
 
@@ -415,13 +439,20 @@ final class TerminalScreen: @unchecked Sendable {
                 onCwdChange?(path)
             }
         case 133:
-            // OSC 133;A — prompt-start marker. We hand the renderer the
-            // absolute doc row so it can stripe across the prompt line.
+            // OSC 133;A — prompt-start marker. We snap the doc row of the
+            // shell cursor so the renderer can stripe across the prompt
+            // rows. Stays "in prompt" until OSC 133;C announces command
+            // output starting; this lets `❯` plus any user-typed chars
+            // share the same accent indicator.
             if rest.hasPrefix("A") {
                 let docRow = scrollback.count + cursorRow
+                inPromptArea = true
+                promptStartDocRow = docRow
                 onPromptStart?(docRow)
+            } else if rest.hasPrefix("C") {
+                inPromptArea = false
             }
-            // B/C/D not yet acted on — reserved for command-block UX later.
+            // B/D not yet acted on — reserved for command-block UX later.
         default:
             break
         }
