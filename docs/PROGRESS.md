@@ -271,10 +271,12 @@ open apps/mac/build/AirTerm.app
   - Web 直接 `import { HandshakeState } from '@airterm/crypto'`;Mac 端下一刀按这个 reference 移植
 
 **Phase 3 剩余**:
-- ⏳ **P3-3b** Mac Noise IK Swift 移植(NoiseSession.swift 镜像 TS reference;同协议名 + 测试向量)
-- ⏳ **P3-4b** Web Noise IK initiator wiring(在 PairPage.tsx 里在 POST complete 前后驱动 IK)
-- ⏳ **P3-Noise-Wire** 把 NoiseHandshakeFrame / EncryptedFrame 接进 RelayClient + ws-client,SDP/ICE 全程经 transport CipherState
-- ⏳ **P3-5** E2E:Mac File→Pair → QR → 手机扫 → IK 握手 → 双端 "Secured & Paired"
+- ✅ **P3-3b** Mac NoiseSession.swift(`daf86ed`) — 镜像 TS reference,DEBUG 自测在启动时 fail-fast
+- ✅ **P3-4b 基础** phone-identity + publicKeyFromPrivate(`024b260`) — phone X25519 静态身份持久化(IndexedDB)
+- ✅ **P3-Noise-Wire-Web** NoisePairDriver(`86f4c8d`) — 纯逻辑 IK initiator 驱动器,7 测试通过,IO 注入便于换 WS
+- ⏳ **P3-Noise-Wire-Mac** Mac 端 responder driver(对应 Web 端);PairingWindow 收到 stage-1 → 跑 readMessageA/writeMessageB → sendRelay 回 phone
+- ⏳ **P3-Noise-Wire-Final** PairPage 用 NoisePairDriver,WS 接 ws-client.ts,显示 "Secured & Paired"
+- ⏳ **P3-5** E2E:跑起 server,真扫码,验证 Noise 握手通过 + transport 加密双向 work
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
