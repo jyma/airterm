@@ -41,14 +41,23 @@ final class TerminalWindow: NSWindow {
         }
     }
 
+    /// Reserved height (in points) at the top of the content area so the
+    /// traffic-light buttons and (when present) the system tab bar don't
+    /// overlap the terminal grid. 28pt matches macOS's stock title-bar height.
+    static let titleBarInset: CGFloat = 28
+
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            // .fullSizeContentView lets us paint the theme background under the
+            // titlebar so traffic-lights look "floating" Ghostty-style, while a
+            // 28pt top inset keeps the terminal grid clear of them.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         title = "AirTerm"
+        titleVisibility = .hidden
         titlebarAppearsTransparent = true
         isMovableByWindowBackground = false
         minSize = NSSize(width: 480, height: 320)
@@ -68,14 +77,20 @@ final class TerminalWindow: NSWindow {
 
         guard let content = contentView else { return }
 
-        let firstTV = makeTerminalView(frame: content.bounds)
+        let firstTV = makeTerminalView(frame: .zero)
         let firstLeaf = Pane.leaf(firstTV)
         self.rootPane = firstLeaf
         self.activeTerminalView = firstTV
 
-        let container = PaneContainerView(frame: content.bounds, root: firstLeaf)
-        container.autoresizingMask = [.width, .height]
+        let container = PaneContainerView(frame: .zero, root: firstLeaf)
+        container.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(container)
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            container.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.titleBarInset),
+        ])
         self.container = container
 
         syncPaneSiblings()

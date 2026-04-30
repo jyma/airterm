@@ -4,6 +4,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Register bundled fonts before anything tries to resolve them by name.
+        BundledFonts.registerAll()
+
         // Load + seed config before any window is built so the first frame
         // already honours the user's theme / font / padding choices.
         _ = ConfigStore.shared

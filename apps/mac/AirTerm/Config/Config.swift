@@ -10,7 +10,10 @@ enum CursorStyle: String {
 /// Every field has a default so a missing / partial file is always valid.
 struct Config: Equatable {
     struct Font: Equatable {
-        var family: String = "JetBrainsMono-Regular"
+        /// PostScript name. The bundled JetBrainsMono Nerd Font Mono is registered
+        /// at launch via `BundledFonts.registerAll()`, so this resolves with no
+        /// system install. Loader falls back through Menlo if the name is missing.
+        var family: String = "JetBrainsMonoNFM-Regular"
         var size: Double = 14
     }
 
@@ -49,7 +52,12 @@ struct Config: Equatable {
     # AirTerm config. Edits reload live — no restart needed.
 
     [font]
-    family = "JetBrainsMono-Regular"
+    # JetBrainsMono Nerd Font Mono is bundled and auto-registered. Use this
+    # PostScript name for full Nerd Font icon coverage (powerline, dev icons,
+    # etc.) — required by airprompt-rendered prompts and the status bar.
+    # Plain "JetBrainsMono-Regular" also works (no nerd icons), as does any
+    # PostScript name installed on your system.
+    family = "JetBrainsMonoNFM-Regular"
     size = 14
 
     [theme]

@@ -13,6 +13,7 @@ let package = Package(
             path: "AirTerm",
             resources: [
                 .process("Render/Shaders"),
+                .process("Resources/Fonts"),
             ]
         ),
         .testTarget(
