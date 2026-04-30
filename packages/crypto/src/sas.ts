@@ -4,18 +4,22 @@
  * User visually confirms both codes match → MITM protection.
  */
 
-import { createHash } from 'node:crypto'
+import { sha256 } from '@noble/hashes/sha2'
 
 /**
  * Generate a 4-digit SAS code from two public keys.
  * Both sides compute this independently — if they match, no MITM occurred.
+ *
+ * Browser-safe: uses @noble/hashes (which the rest of the package already
+ * depends on for Noise / X25519) instead of node:crypto so the same
+ * module bundles cleanly into the web app.
  */
 export function generateSAS(
   macPublicKey: Uint8Array,
   phonePublicKey: Uint8Array,
 ): string {
   const combined = concatSorted(macPublicKey, phonePublicKey)
-  const hash = createHash('sha256').update(combined).digest()
+  const hash = sha256(combined)
 
   // Take first 2 bytes → 4 decimal digits
   const value = (hash[0] << 8) | hash[1]

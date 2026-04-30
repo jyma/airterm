@@ -1,13 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QRScanner, type QRScannerError } from '../components/QRScanner'
-import {
-  PairClientError,
-  completePair,
-  getDefaultPhoneName,
-  getOrCreatePhoneDeviceId,
-  parseQRPayload,
-} from '../lib/pair-client'
+import { PairClientError } from '../lib/pair-client'
+import { runPhonePairFlow } from '../lib/pair-flow'
 import { storePairing } from '../lib/storage'
 
 type Mode = 'scan' | 'manual'
@@ -34,19 +29,8 @@ export function PairPage() {
       if (status.kind === 'pairing') return
       setStatus({ kind: 'pairing' })
       try {
-        const qr = parseQRPayload(rawText)
-        const phoneDeviceId = getOrCreatePhoneDeviceId()
-        const phoneName = getDefaultPhoneName()
-        const result = await completePair(qr, phoneDeviceId, phoneName)
-        storePairing({
-          token: result.token,
-          deviceId: phoneDeviceId,
-          targetDeviceId: result.macDeviceId,
-          targetName: result.macName,
-          serverUrl: result.serverUrl,
-          pairedAt: Date.now(),
-          macPublicKey: result.macPublicKey,
-        })
+        const info = await runPhonePairFlow(rawText)
+        storePairing(info)
         navigate('/paired', { replace: true })
       } catch (e) {
         const message =
