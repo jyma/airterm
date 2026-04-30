@@ -256,13 +256,25 @@ open apps/mac/build/AirTerm.app
   - `UI/PairingWindow.swift`:NSPanel 浮窗,主题感知(订阅 ConfigStore);async startPairing 走 `/api/pair/init` → CIQRCodeGenerator 渲染 280pt QR + monospaced 大粗体显示 pair code
   - `Utils/MacDeviceID.swift`:稳定 per-install UUID(同 KeyStore 的 production caveat,GA 前迁 Keychain)
   - `App/AppDelegate.swift`:File → Pair New Device 菜单;`AIRTERM_RELAY_URL` env 覆盖,默认 `https://relay.airterm.dev`
+- ✅ **P3-3c-ii** Mac WS 连接 + pair_completed 监听(`f0b94e9`)— **demo 路径已闭合**
+  - PairingWindow 在 init 成功后开 RelayClient,onMessage 看 `pair_completed`,实时更新状态
+  - 状态线:`Requesting…` → `Opening relay channel…` → `Waiting for phone…` → `Paired with <name>!`
+  - 关闭面板自动 disconnect;deinit 也兜底
+- ✅ **P3-3d** Mac 持久化 paired phones + relay token(`2f70694`)
+  - `Services/PairingStore.swift`:`PairedPhone` Codable 列表(deviceId/name/pairedAt/publicKey?)+ Mac JWT token,UserDefaults 存
+  - PairingWindow 在 pair_completed 时 addOrUpdate + saveMacToken
+  - 重启后还认得手机;phone publicKey 等 P3-4b 把 Noise 接进来再填
+- ✅ **P3-Noise-TS** Noise IK 参考实现(`0d2e591`)— **核心安全基础落地**
+  - `packages/crypto/src/noise.ts`:SymmetricState + CipherState + HandshakeState (IK pattern §7.5)
+  - Curve25519 + ChaCha20-Poly1305 + SHA-256(全部 @noble);`Noise_IK_25519_ChaChaPoly_SHA256` 协议名
+  - 11 新测试通过:round-trip 握手 / 双向 transport 加密 / tamper 拒绝 / prologue 不匹配拒 / role 守卫
+  - Web 直接 `import { HandshakeState } from '@airterm/crypto'`;Mac 端下一刀按这个 reference 移植
 
-**Phase 3 MVP 端到端 demo 离齐只差**:
-- ⏳ **P3-3c-ii** Mac WS 连接 + 监听 `pair_completed`(让 PairingWindow 状态更新成"Paired!")
-  - 闭合 demo 路径(无 Noise):Mac File→Pair → 显示 QR → 手机扫 → POST complete → Mac 收 WS 通知 → Both 端显示"配对成功"
-- ⏳ **P3-3b** Mac Noise IK responder + 握手驱动(security 加固,demo 之后)
-- ⏳ **P3-4b** Web Noise IK initiator(WebCrypto X25519,与 Mac 同算法对齐)
-- ⏳ **P3-5** 完整 E2E + Noise:demo 路径上夹一层 Noise IK,SDP/ICE 走 Noise transport
+**Phase 3 剩余**:
+- ⏳ **P3-3b** Mac Noise IK Swift 移植(NoiseSession.swift 镜像 TS reference;同协议名 + 测试向量)
+- ⏳ **P3-4b** Web Noise IK initiator wiring(在 PairPage.tsx 里在 POST complete 前后驱动 IK)
+- ⏳ **P3-Noise-Wire** 把 NoiseHandshakeFrame / EncryptedFrame 接进 RelayClient + ws-client,SDP/ICE 全程经 transport CipherState
+- ⏳ **P3-5** E2E:Mac File→Pair → QR → 手机扫 → IK 握手 → 双端 "Secured & Paired"
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
