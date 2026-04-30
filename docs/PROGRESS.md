@@ -232,9 +232,26 @@ open apps/mac/build/AirTerm.app
 
 ---
 
-## 下一步：Phase 3 · 信令 + 配对重建（~1 周，跨 4 子系统）
+## Phase 3 · 信令 + 配对重建(进行中)
 
-**注**: Phase 2.5 完成前,Phase 3 暂停在队列。Phase 3 范围、切片建议、子系统现状勘察见下方原内容。
+**已落地**:
+- ✅ **P3-1** `packages/protocol` 加 signaling schema(`993f4ea`)
+  - signaling.ts:NoiseHandshakeFrame(3 stage IK + ack)/ EncryptedFrame(seq 化)/ SignalingPlainMessage(WebRTC offer/answer/ICE/ping/pong/bye)
+  - pairing.ts:QRCodePayloadV1 / V2 拆分,V2 强制 macPublicKey + version 字段;`isQRCodePayloadV2` 类型守卫
+  - tests:10 新签名 + 4 新 pairing test,共 26 通过
+  - server 已是 pure relay(WSManager 按 `type='relay'` 转发,payload 不动),无需改动
+- ✅ **P3-3a** Mac KeyStore + v2 QR 生成(`8872acf`)
+  - `Services/KeyStore.swift`:CryptoKit Curve25519 X25519 静态身份生成 + UserDefaults 持久化(production 应迁 Keychain)
+  - `Models/PairInfo.swift`:QRCodePayload 重做成 v2(macPublicKey + v=2 + encodedJSON)
+  - `Services/PairingService.swift`:加载/生成静态 keypair,`macPublicKeyBase64` API,initiatePairing 加 URL/HTTP 校验
+
+**待办**:
+- ⏳ **P3-3b** Mac Noise IK responder + 信令握手驱动(NoiseSession.swift,~200 行;PairingService 加 awaitPairCompleted/handleSignalingFrame/sendOffer/sendIce 接口)
+- ⏳ **P3-2(裁剪)** server 旧 dist/ 残留(messages.* 几个文件)清理(可推迟到 v1 GA)
+- ⏳ **P3-4** apps/web Vite + React 骨架 + pair 页面 + QR 扫描(big chunk)
+- ⏳ **P3-5** 端到端联调:Mac 菜单"配对新设备" → QR → 手机扫码 → Noise 握手完成 → 双端"配对成功"
+
+**核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
 **目标**：Mac 菜单"配对新设备" → 出二维码 → 手机扫码 → Noise IK 握手完成 → 配对 token 持久化。此阶段不传屏幕数据。
 
