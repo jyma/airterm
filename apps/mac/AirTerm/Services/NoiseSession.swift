@@ -393,6 +393,56 @@ extension Noise {
                 return "transport pong decryption mismatch"
             }
 
+            // ---- TakeoverChannel round-trip ----
+            //
+            // Drive a TakeoverFrame from initiator → responder and back
+            // through actual TakeoverChannel instances using the transport
+            // CipherStates we just split. Catches drift between the
+            // Swift Codable frame layout and the TS reference.
+            var capturedFromInitiator: [String: Any]?
+            var capturedFromResponder: [String: Any]?
+            var responderInbox: [TakeoverFrame] = []
+            var initiatorInbox: [TakeoverFrame] = []
+
+            let initiatorChannel = TakeoverChannel(
+                send: initFinal.send,
+                receive: initFinal.receive,
+                sendSignaling: { dict in capturedFromInitiator = dict },
+                onFrame: { frame in initiatorInbox.append(frame) }
+            )
+            let responderChannel = TakeoverChannel(
+                send: respFinal.send,
+                receive: respFinal.receive,
+                sendSignaling: { dict in capturedFromResponder = dict },
+                onFrame: { frame in responderInbox.append(frame) }
+            )
+
+            let pingFrame: TakeoverFrame = .ping(TakeoverPingFrame(seq: 0, ts: 1234))
+            try initiatorChannel.sendFrame(pingFrame)
+            guard let pingDict = capturedFromInitiator else {
+                return "TakeoverChannel did not produce an outbound frame"
+            }
+            responderChannel.handleIncoming(pingDict)
+            guard responderInbox.count == 1 else {
+                return "TakeoverChannel responder inbox empty after ping"
+            }
+            guard responderInbox.first == pingFrame else {
+                return "TakeoverChannel ping mismatch on responder side"
+            }
+
+            let inputFrame: TakeoverFrame = .inputEvent(InputEventFrame(
+                seq: 0,
+                bytes: Data("ls\r".utf8).base64EncodedString()
+            ))
+            try responderChannel.sendFrame(inputFrame)
+            guard let inputDict = capturedFromResponder else {
+                return "TakeoverChannel responder produced no outbound frame"
+            }
+            initiatorChannel.handleIncoming(inputDict)
+            guard initiatorInbox.count == 1, initiatorInbox.first == inputFrame else {
+                return "TakeoverChannel input round-trip mismatch on initiator side"
+            }
+
             return nil
         } catch {
             return "exception: \(error)"
