@@ -19,6 +19,40 @@ final class StatusBarView: NSView {
     /// terminal window) update this when their pane tree changes.
     var paneCount: Int = 1 { didSet { if paneCount != oldValue { rebuildSegments() } } }
 
+    /// Current working directory of the active PTY, set by the window from
+    /// OSC 7 events. nil = no cwd yet (terminal hasn't sourced our shim).
+    private var currentCwd: String?
+    private var currentBranch: String?
+
+    /// Called from the terminal window when the active session's cwd changes.
+    /// Resolves the cwd's git branch synchronously — file IO is bounded to
+    /// at most a few `.git/HEAD` reads, fast enough for the prompt path.
+    func updateCwd(_ path: String?) {
+        currentCwd = path
+        currentBranch = path.flatMap { Self.gitBranch(in: $0) }
+        rebuildSegments()
+    }
+
+    private static func gitBranch(in cwd: String) -> String? {
+        var dir = URL(fileURLWithPath: cwd).standardizedFileURL
+        for _ in 0..<32 {  // hard cap on traversal depth
+            let head = dir.appendingPathComponent(".git/HEAD")
+            if let contents = try? String(contentsOf: head, encoding: .utf8) {
+                let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+                let prefix = "ref: refs/heads/"
+                if trimmed.hasPrefix(prefix) {
+                    return String(trimmed.dropFirst(prefix.count))
+                }
+                // Detached HEAD: short SHA fallback.
+                return String(trimmed.prefix(7))
+            }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        return nil
+    }
+
     private var theme: Theme = ConfigStore.shared.theme
     private var configToken: UUID?
     private var clockTimer: Timer?
@@ -91,9 +125,18 @@ final class StatusBarView: NSView {
         leftSegments.removeAll(keepingCapacity: true)
         rightSegments.removeAll(keepingCapacity: true)
 
-        // Left: branch placeholder (real branch comes once OSC 7 cwd-tracking
-        // is wired in A8).
-        leftSegments.append(makeSegment(icon: "\u{f120}", text: "—", color: theme.gitColor))
+        // Left: cwd basename + git branch (when inside a repo). Empty cwd
+        // happens before the shim's first OSC 7 emission — show nothing
+        // rather than a stale placeholder.
+        if let cwd = currentCwd {
+            let label = cwd == NSHomeDirectory()
+                ? "~"
+                : (cwd as NSString).lastPathComponent
+            leftSegments.append(makeSegment(icon: "\u{f07c}", text: label, color: theme.infoColor))
+        }
+        if let branch = currentBranch {
+            leftSegments.append(makeSegment(icon: "\u{f126}", text: branch, color: theme.gitColor))
+        }
 
         // Right (rendered right-to-left): pane count when split, then clock.
         if paneCount > 1 {

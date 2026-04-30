@@ -8,8 +8,24 @@ final class TerminalSession {
 
     private var started = false
 
+    /// Last cwd reported by the shell over OSC 7. Updated on every chpwd /
+    /// command boundary so the status bar can resolve git metadata without
+    /// poking at the child process directly.
+    private(set) var cwd: String?
+    /// External observer for cwd changes; the window wires this to its
+    /// status bar when it tracks the active pane.
+    var onCwdChange: ((String) -> Void)?
+
     init(rows: Int = 24, cols: Int = 80) {
         self.screen = TerminalScreen(rows: rows, cols: cols)
+
+        // Forward shell-integration signals out of the screen so the UI
+        // layer doesn't need to know about TerminalScreen internals.
+        screen.onCwdChange = { [weak self] path in
+            guard let self else { return }
+            self.cwd = path
+            self.onCwdChange?(path)
+        }
     }
 
     /// Start the shell. If called again, behaves as `resize` so callers can

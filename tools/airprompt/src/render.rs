@@ -24,11 +24,18 @@ pub fn render(cfg: &PromptConfig, args: &PromptArgs) -> String {
     // Character module renders on its own line so users get a clean
     // `❯ ` indent at the cursor regardless of how many segments precede it.
     let character = modules::character::render(&cfg.character, args);
-    if line.is_empty() {
+    let body = if line.is_empty() {
         format!("{character} ")
     } else {
         format!("{line}\n{character} ")
-    }
+    };
+
+    // OSC 133 prompt boundary markers — A right before the prompt, B right
+    // after it. AirTerm uses these to:
+    //   - render a left-edge accent stripe over the prompt line
+    //   - power "jump to previous/next command" navigation later
+    // Format follows the de-facto FinalTerm spec, terminated by ST (ESC \).
+    format!("\x1b]133;A\x1b\\{body}\x1b]133;B\x1b\\")
 }
 
 fn render_module(name: &str, cfg: &PromptConfig, args: &PromptArgs) -> Option<String> {

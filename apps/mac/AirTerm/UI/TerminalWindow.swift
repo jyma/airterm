@@ -10,8 +10,23 @@ final class TerminalWindow: NSWindow {
     private weak var activeTerminalView: TerminalView? {
         didSet {
             oldValue?.isActive = false
+            // Stop pushing cwd updates from a pane that's no longer focused
+            // so the status bar reflects exactly the active session's cwd.
+            oldValue?.session.onCwdChange = nil
             activeTerminalView?.isActive = true
+            wireActiveCwd()
         }
+    }
+
+    /// Attach the active session's OSC 7 cwd stream to the status bar.
+    /// Re-pushes the last-known cwd immediately so switching panes feels
+    /// instantaneous instead of waiting for the next prompt.
+    private func wireActiveCwd() {
+        guard let tv = activeTerminalView, let bar = statusBar else { return }
+        tv.session.onCwdChange = { [weak bar] path in
+            DispatchQueue.main.async { bar?.updateCwd(path) }
+        }
+        bar.updateCwd(tv.session.cwd)
     }
 
     /// Flip every leaf's `hasSiblings` flag after a pane-tree mutation so the

@@ -51,6 +51,17 @@ final class TerminalScreen: @unchecked Sendable {
     // SGR state — applied to every printable char written from now on.
     private var currentAttrs = CellAttributes.default
 
+    // Shell integration callbacks — invoked from the parser thread, so
+    // observers should hop to the main queue if they touch UI. Kept as
+    // optional closures so non-shell-integrated terminals (anything that
+    // doesn't speak OSC 7 / OSC 133) just stay silent.
+    /// Fires with an absolute filesystem path whenever an OSC 7 cwd update
+    /// arrives. Decoded from `file://hostname/path` URIs.
+    var onCwdChange: ((String) -> Void)?
+    /// Fires when an OSC 133;A (prompt-start) marker is seen. Used by
+    /// the renderer to draw a left-edge accent stripe over prompt rows.
+    var onPromptStart: ((Int) -> Void)?  // doc row of the prompt line
+
     // Parser
     private var state: ParseState = .ground
     private var paramBuf = ""
@@ -279,7 +290,10 @@ final class TerminalScreen: @unchecked Sendable {
         case .csi:      csiChar(ch)
         case .osc:      oscChar(ch)
         case .oscEscST:
-            state = ch == "\\" ? .ground : .ground // ST or invalid
+            // ESC \ closes the OSC normally; anything else means malformed,
+            // but either way we leave OSC mode and try to dispatch what we
+            // already have.
+            finishOSC()
         }
     }
 
@@ -367,9 +381,62 @@ final class TerminalScreen: @unchecked Sendable {
     }
 
     private func oscChar(_ ch: Character) {
-        if ch == "\u{07}" { state = .ground; return } // BEL terminates OSC
-        if ch == "\u{1B}" { state = .oscEscST; return } // Start of ST
-        // accumulate but ignore OSC content
+        if ch == "\u{07}" { finishOSC(); return }    // BEL terminates OSC
+        if ch == "\u{1B}" { state = .oscEscST; return }  // Start of ST (ESC \)
+        oscBuf.append(ch)
+    }
+
+    /// Parses `oscBuf` once the terminator (BEL or ST) arrives. Quietly
+    /// drops malformed payloads — an OSC handler must never crash the
+    /// parser since untrusted data flows through it.
+    private func finishOSC() {
+        defer {
+            oscBuf.removeAll(keepingCapacity: true)
+            state = .ground
+        }
+        // Format: <decimal id>;<rest>
+        let semi = oscBuf.firstIndex(of: ";")
+        let idStr: String
+        let rest: String
+        if let semi {
+            idStr = String(oscBuf[..<semi])
+            rest = String(oscBuf[oscBuf.index(after: semi)...])
+        } else {
+            idStr = oscBuf
+            rest = ""
+        }
+        guard let id = Int(idStr) else { return }
+        switch id {
+        case 7:
+            // OSC 7: working dir reported by the shell as file://host/path.
+            // We don't validate the host — anything past the host segment
+            // is the path AirTerm cares about.
+            if let path = parseFileURIPath(rest) {
+                onCwdChange?(path)
+            }
+        case 133:
+            // OSC 133;A — prompt-start marker. We hand the renderer the
+            // absolute doc row so it can stripe across the prompt line.
+            if rest.hasPrefix("A") {
+                let docRow = scrollback.count + cursorRow
+                onPromptStart?(docRow)
+            }
+            // B/C/D not yet acted on — reserved for command-block UX later.
+        default:
+            break
+        }
+    }
+
+    /// Strips the `file://hostname/` prefix off an OSC 7 payload, returning
+    /// the bare filesystem path (URL-decoded). Returns nil if the URI is
+    /// malformed.
+    private func parseFileURIPath(_ uri: String) -> String? {
+        guard uri.hasPrefix("file://") else { return nil }
+        let afterScheme = uri.dropFirst(7)
+        // Skip the host segment (everything up to the next `/`).
+        guard let slashIdx = afterScheme.firstIndex(of: "/") else { return nil }
+        let pathPart = String(afterScheme[slashIdx...])
+        return pathPart.removingPercentEncoding ?? pathPart
     }
 
     // MARK: - CSI Commands
