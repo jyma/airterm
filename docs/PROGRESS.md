@@ -297,8 +297,8 @@ open apps/mac/build/AirTerm.app
 - ✅ **P4-3** E2E 测试扩展(`0926a64`)— Noise 握手后再走 ScreenSnapshot(Mac→Phone) + InputEvent(Phone→Mac),全在 215ms
 
 **待办**:
-- ⏳ **P4-Wire-Mac** PairingWindow 完成 Noise 后把 transportResult 交给一个 TakeoverSession;TerminalSession.snapshot → ScreenDelta encoder(diff 上一帧)→ TakeoverChannel.sendFrame;phone 的 InputEvent.bytes → PTY.write;Resize 处理
-- ⏳ **P4-Wire-Web** /paired 加 xterm.js;TakeoverChannel onFrame → terminal.write;键盘事件 → InputEvent
+- ✅ **P4-Wire-Mac** TakeoverEncoder + TakeoverSession + AppDelegate 接管 RelayClient(`28fc074`)— Mac 端 30Hz 广播 ScreenSnapshot/Delta + 反向 InputEvent → PTY + Resize 处理。PairingHandoff 把 warm WS + 转发权交给 AppDelegate;PairingWindow 关闭不再断 WS。
+- ⏳ **P4-Wire-Web** /paired 加 xterm.js + TakeoverChannel onFrame → terminal.write;键盘事件 → InputEvent → channel.sendFrame
 - ⏳ **P4.x** 切 WebRTC P2P 替代 WS relay(libwebrtc Swift + 浏览器原生 RTCPeerConnection;SDP/ICE 已经有 schema)
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
