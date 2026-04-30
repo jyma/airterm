@@ -136,9 +136,26 @@ final class PairingWindow: NSPanel {
         switch type {
         case "pair_completed":
             let phoneName = (message["phoneName"] as? String) ?? "phone"
+            let phoneDeviceId = (message["phoneDeviceId"] as? String) ?? ""
+            let phonePublicKey = message["phonePublicKey"] as? String
             statusLabel.stringValue = "Paired with \(phoneName)!"
             helperLabel.stringValue = "You can close this panel."
             closeButton.title = "Done"
+            // Persist so the next launch already knows about this phone.
+            // We persist even if the message lacks fields we would prefer
+            // (defensive defaults above) — better to record a partial
+            // entry than lose the pairing history entirely.
+            if !phoneDeviceId.isEmpty {
+                PairingStore.addOrUpdate(PairedPhone(
+                    deviceId: phoneDeviceId,
+                    name: phoneName,
+                    pairedAt: Date(),
+                    publicKey: phonePublicKey
+                ))
+            }
+            if let token = lastPairInfo?.token {
+                PairingStore.saveMacToken(token)
+            }
         default:
             break
         }
