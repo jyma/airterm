@@ -5,6 +5,7 @@ enum FocusDirection { case left, right, up, down }
 final class TerminalWindow: NSWindow {
     private var rootPane: Pane!
     private var container: PaneContainerView!
+    private var statusBar: StatusBarView!
 
     private weak var activeTerminalView: TerminalView? {
         didSet {
@@ -14,13 +15,15 @@ final class TerminalWindow: NSWindow {
     }
 
     /// Flip every leaf's `hasSiblings` flag after a pane-tree mutation so the
-    /// focus border only renders when there's more than one pane.
+    /// focus border only renders when there's more than one pane. Also keeps
+    /// the status bar's pane-count badge in sync.
     private func syncPaneSiblings() {
         let leaves = rootPane.leaves
         let multiple = leaves.count > 1
         for leaf in leaves {
             leaf.terminalView?.hasSiblings = multiple
         }
+        statusBar?.paneCount = leaves.count
     }
 
     private var configToken: UUID?
@@ -82,18 +85,42 @@ final class TerminalWindow: NSWindow {
         self.rootPane = firstLeaf
         self.activeTerminalView = firstTV
 
-        let container = PaneContainerView(frame: .zero, root: firstLeaf)
-        container.translatesAutoresizingMaskIntoConstraints = false
+        // macOS y-up coords: y=0 is bottom of contentView. Status bar pinned
+        // to the bottom, pane container fills the middle, traffic lights
+        // float in the top-28pt strip we leave clear.
+        // We use autoresizingMask (not auto-layout) so subview intrinsic
+        // sizes never bubble up to NSWindow's fittingSize and collapse the
+        // frame to ~110pt the way auto-laid-out NSStackView children do.
+        let cw = content.bounds.width
+        let ch = content.bounds.height
+        let statusH = StatusBarView.height
+        let titleH = Self.titleBarInset
+
+        let statusBar = StatusBarView(
+            frame: NSRect(x: 0, y: 0, width: cw, height: statusH)
+        )
+        statusBar.autoresizingMask = [.width]
+        content.addSubview(statusBar)
+        self.statusBar = statusBar
+
+        let container = PaneContainerView(
+            frame: NSRect(x: 0, y: statusH, width: cw, height: ch - statusH - titleH),
+            root: firstLeaf
+        )
+        container.autoresizingMask = [.width, .height]
         content.addSubview(container)
-        NSLayoutConstraint.activate([
-            container.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            container.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            container.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.titleBarInset),
-        ])
         self.container = container
 
         syncPaneSiblings()
+
+        // Block macOS state restoration (which silently clamps our frame to
+        // a previous session's smaller size) and force the initial frame.
+        isRestorable = false
+        setFrameAutosaveName("")
+        setFrame(
+            NSRect(x: 100, y: 100, width: 1200, height: 800),
+            display: false
+        )
 
         DispatchQueue.main.async { [weak self] in
             self?.makeFirstResponder(firstTV)

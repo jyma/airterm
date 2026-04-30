@@ -21,6 +21,37 @@ struct Theme {
 }
 
 extension Theme {
+    /// Semantic colour roles used by chrome surfaces (status bar, command
+    /// palette, future tab-bar segments) that want "the right hue for this
+    /// theme" without hardcoding ANSI indices. Each role derives from the
+    /// theme's standard palette so all 14 built-ins get sensible defaults
+    /// for free; per-theme overrides can be added later by promoting these
+    /// to stored properties.
+
+    /// Primary user-facing accent — the colour of the prompt indicator (❯),
+    /// active tab underline, focus ring, etc. Tracks `accent` so the
+    /// signature hue of a theme stays consistent across chrome.
+    var promptColor: SIMD4<Float> { accent }
+
+    /// Git branch / metadata. ANSI magenta — matches starship convention.
+    var gitColor: SIMD4<Float> { ansiStandard[5] }
+
+    /// Modified / dirty marker. Yellow, the universal "attention" hue.
+    var gitDirtyColor: SIMD4<Float> { ansiStandard[3] }
+
+    /// Error state (non-zero exit, parse failure, …). ANSI red.
+    var errorColor: SIMD4<Float> { ansiStandard[1] }
+
+    /// Success state (zero exit, completed task). ANSI green.
+    var successColor: SIMD4<Float> { ansiStandard[2] }
+
+    /// Warning. ANSI yellow.
+    var warningColor: SIMD4<Float> { ansiStandard[3] }
+
+    /// Informational secondary text — quieter than `foreground` but still
+    /// readable, used for cwd / time / proc count in the status bar.
+    var infoColor: SIMD4<Float> { ansiStandard[4] }
+
     static let builtins: [String: Theme] = [
         "catppuccin-mocha": .catppuccinMocha,
         "tokyo-night": .tokyoNight,

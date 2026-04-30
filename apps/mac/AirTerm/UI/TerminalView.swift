@@ -15,17 +15,26 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
     /// track which pane is currently receiving split / close commands.
     var onActivated: (() -> Void)?
 
-    /// Drawn as the pane border; toggled by the window on focus changes.
+    /// Whether this pane currently owns keyboard focus. The window flips this
+    /// when the user splits / closes / cycles. We use it to drive a Ghostty-style
+    /// dim overlay over the *inactive* panes — the active pane stays at full
+    /// brightness, every other pane fades behind a translucent veil. No
+    /// border, no chrome — just a soft luminance contrast.
     var isActive: Bool = false {
-        didSet { updateBorderColor() }
+        didSet { updateDimOverlay() }
     }
 
-    /// Only meaningful when the window has more than one pane — otherwise the
-    /// focus indicator is visual noise. The window flips this on split /
-    /// close so a lone pane hides its border entirely.
+    /// Only meaningful when the window has more than one pane — a lone pane
+    /// has nothing to dim against, so the overlay stays clear.
     var hasSiblings: Bool = false {
-        didSet { updateBorderColor() }
+        didSet { updateDimOverlay() }
     }
+
+    /// Translucent rectangle shown only over inactive panes. Sits above the
+    /// MTKView in the subview stack and uses the theme background as its
+    /// fill, so dimming a pane reads as "fade toward the surrounding theme"
+    /// rather than introducing a foreign tint.
+    private let dimOverlay = NSView()
 
     private var borderInset: CGFloat = CGFloat(Config.default.window.padding)
     private var currentTheme: Theme = .catppuccinMocha
@@ -62,7 +71,6 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         super.init(frame: frameRect)
 
         wantsLayer = true
-        layer?.borderWidth = inset
 
         metalView.autoresizingMask = [.width, .height]
         metalView.colorPixelFormat = .bgra8Unorm
@@ -72,6 +80,15 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         metalView.enableSetNeedsDisplay = false
         metalView.delegate = renderer
         addSubview(metalView)
+
+        // Dim overlay (Ghostty's unfocused-split-fill). Stays above the
+        // Metal layer; alpha is 0 when active and `dimAlpha` when inactive.
+        dimOverlay.wantsLayer = true
+        dimOverlay.layer?.backgroundColor = NSColor.black.cgColor  // recoloured by apply()
+        dimOverlay.alphaValue = 0
+        dimOverlay.frame = bounds
+        dimOverlay.autoresizingMask = [.width, .height]
+        addSubview(dimOverlay)
 
         renderer.session = session
         renderer.delegate = self
@@ -96,20 +113,27 @@ final class TerminalView: NSView, MetalRendererDelegate, NSMenuItemValidation {
         renderer.pointSize = CGFloat(config.font.size)
         renderer.cursorStyle = config.cursor.style
 
+        // Dim overlay tint follows theme background so an inactive pane reads
+        // as "fade toward the theme" instead of "ink layer over content".
+        dimOverlay.layer?.backgroundColor = CGColor(
+            srgbRed: CGFloat(bg.x), green: CGFloat(bg.y), blue: CGFloat(bg.z), alpha: 1
+        )
+
         let newInset = CGFloat(config.window.padding)
         if newInset != borderInset {
             borderInset = newInset
-            layer?.borderWidth = newInset
             metalView.frame = bounds.insetBy(dx: newInset, dy: newInset)
         }
 
-        updateBorderColor()
+        updateDimOverlay()
     }
 
-    private func updateBorderColor() {
-        let inactiveColor = SIMD4<Float>(currentTheme.background.x, currentTheme.background.y, currentTheme.background.z, 1)
-        let color = (isActive && hasSiblings) ? currentTheme.accent : inactiveColor
-        layer?.borderColor = CGColor(srgbRed: CGFloat(color.x), green: CGFloat(color.y), blue: CGFloat(color.z), alpha: CGFloat(color.w))
+    /// Ghostty's `unfocused-split-opacity = 0.7` defaults to a 30% dim — i.e.
+    /// the overlay alpha is 0.3. We follow that, but only when the pane has
+    /// siblings (a single pane has nothing to fade against).
+    private func updateDimOverlay() {
+        let alpha: CGFloat = (isActive || !hasSiblings) ? 0 : 0.3
+        dimOverlay.alphaValue = alpha
     }
 
     required init?(coder: NSCoder) {

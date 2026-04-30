@@ -14,6 +14,18 @@ final class PaneContainerView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported.") }
 
+    /// Override so the recursive split-view subtree resizes with us even when
+    /// our own initial frame was .zero (auto-layout passes us a real size on
+    /// the first layout cycle, but autoresizingMask alone scales by ratio of
+    /// new/old, which collapses with old==0). On every layout pass we reseat
+    /// the top-level subtree at our current bounds.
+    override func layout() {
+        super.layout()
+        if let tree = subviews.first {
+            tree.frame = bounds
+        }
+    }
+
     func setRoot(_ pane: Pane) {
         root = pane
         rebuild()
