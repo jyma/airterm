@@ -226,7 +226,22 @@ struct Command {
     static func all() -> [Command] {
         var out: [Command] = []
 
-        // Theme switcher: one entry per built-in theme.
+        // ChromeTheme switcher: one-shot apply that pairs a prompt preset
+        // with the colour theme it was designed against. Users land here
+        // first so the keyboard-only flow lets them sample the five built-
+        // in identities before falling back to per-axis tuning.
+        for chrome in ChromeTheme.all {
+            out.append(Command(
+                icon: "\u{f5fd}",  //   chevron-bar (chrome bundle)
+                title: "Chrome: \(chrome.displayName)",
+                subtitle: chrome.description,
+                run: { _ in ConfigStore.shared.applyChromeTheme(chrome) }
+            ))
+        }
+
+        // Per-theme switcher: leave granular axis controls below the bundle
+        // entries for users who want a different colour with their current
+        // prompt preset (or vice versa).
         for (i, name) in Theme.builtinNames.enumerated() {
             let key = i < 8 ? "⌘⌃\(i + 1)" : ""
             out.append(Command(

@@ -43,11 +43,19 @@ struct Config: Equatable {
         var injectPrompt: Bool = true
     }
 
+    struct Chrome: Equatable {
+        /// Name of the active ChromeTheme. When set, ConfigStore applies
+        /// the matching prompt preset + colour theme on every config load.
+        /// Leave nil to opt out and configure prompt / theme individually.
+        var preset: String? = nil
+    }
+
     var font = Font()
     var theme = ThemeRef()
     var cursor = Cursor()
     var window = Window()
     var shell = Shell()
+    var chrome = Chrome()
 
     static let `default` = Config()
 
@@ -94,6 +102,16 @@ struct Config: Equatable {
     # prompt setup untouched. Users with starship / p10k / oh-my-zsh
     # already configured will keep their existing prompt either way.
     inject_prompt = true
+
+    [chrome]
+    # Optional one-shot bundle: applies a matching prompt preset + colour
+    # theme together on every config reload. Leave commented out to
+    # configure [theme] and prompt.toml individually.
+    #
+    # built-in chrome presets:
+    #   pastel-powerline, tokyo-night, gruvbox-rainbow, jetpack, minimal
+    #
+    # preset = "pastel-powerline"
     """
 
     static func load(from url: URL = Config.userConfigURL) -> Config {
@@ -134,6 +152,11 @@ struct Config: Equatable {
         }
         if let shell = dict["shell"] as? [String: Any] {
             if let inject = shell["inject_prompt"] as? Bool { config.shell.injectPrompt = inject }
+        }
+        if let chrome = dict["chrome"] as? [String: Any] {
+            if let preset = chrome["preset"] as? String, !preset.isEmpty {
+                config.chrome.preset = preset
+            }
         }
         return config
     }

@@ -21,6 +21,10 @@ final class ConfigStore {
     /// so the TOML remains authoritative after the user edits it.
     private var manualOverride: String?
     private var appearanceObserver: NSObjectProtocol?
+    /// The last `chrome.preset` value we applied. Tracking it prevents the
+    /// reload path from overwriting the user's prompt.toml on every config
+    /// save when nothing about the chrome bundle actually changed.
+    private var lastAppliedChromePreset: String?
 
     private init() {
         Config.seedIfMissing()
@@ -28,6 +32,7 @@ final class ConfigStore {
         self.config = loaded
         self.theme = Theme.named(Self.resolveThemeName(config: loaded, override: nil))
         observeSystemAppearance()
+        applyChromePresetIfNeeded(preset: loaded.chrome.preset)
     }
 
     /// Start watching the config file. Safe to call multiple times; subsequent
@@ -52,6 +57,9 @@ final class ConfigStore {
                 // their choice; drop any in-memory override.
                 self.manualOverride = nil
                 self.config = newConfig
+                // Apply chrome.preset BEFORE recomputeTheme so the chrome
+                // theme's colour choice wins over any stale [theme] hint.
+                self.applyChromePresetIfNeeded(preset: newConfig.chrome.preset)
                 self.recomputeTheme()
                 // Re-install watcher because editors often replace files
                 // atomically, which invalidates the original fd.
@@ -83,6 +91,29 @@ final class ConfigStore {
     func setTheme(named name: String) {
         manualOverride = name
         recomputeTheme()
+    }
+
+    /// Transient ChromeTheme switch from the command palette. Copies the
+    /// matching prompt preset over the user's prompt.toml and switches the
+    /// in-memory colour theme. Doesn't write the chrome.preset back to
+    /// config.toml — users who want persistence add `[chrome] preset = …`
+    /// themselves so their TOML stays declarative.
+    func applyChromeTheme(_ chrome: ChromeTheme) {
+        chrome.apply()
+        lastAppliedChromePreset = chrome.name
+    }
+
+    /// Idempotent helper used on every load: only fires when the config-
+    /// declared preset name actually changed since the last apply, so live
+    /// edits to unrelated keys never overwrite the user's prompt.toml.
+    private func applyChromePresetIfNeeded(preset: String?) {
+        guard let name = preset, name != lastAppliedChromePreset else { return }
+        guard let theme = ChromeTheme.named(name) else {
+            DebugLog.log("ConfigStore: unknown chrome.preset \(name)")
+            return
+        }
+        theme.apply()
+        lastAppliedChromePreset = name
     }
 
     /// Cycle forward (or backward) through the built-in themes.
