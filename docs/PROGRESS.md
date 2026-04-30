@@ -3,9 +3,9 @@
 > 当前进度与下次继续开工的准备信息。完整产品定位与阶段计划见 `docs/ROADMAP.md`。
 
 **最后更新**: 2026-04-30
-**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `9554d4e`，**领先 `airterm/redesign` 11 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计中（11/15）** · Phase 3 队列中
-**下次会话入口**: 跳到本文 "Phase 2.5 UI 重设计" 一节，对照已完成清单继续从 B1/B2/B3/C1 起步
+**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · Phase 3 队列中
+**下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
 
 ---
 
@@ -172,13 +172,14 @@ open apps/mac/build/AirTerm.app
 
 ---
 
-## Phase 2.5 · UI 重设计(对标 Ghostty 功能 + Starship 美感)
+## Phase 2.5 · UI 重设计(对标 Ghostty 功能 + Starship 美感)✅
 
 **启动**: 2026-04-30
+**完成**: 2026-04-30(全 15 任务一气推完,共 15 个 commit)
 **目标**: 在 Phase 3 之前先把 UI 推到产品级 — Ghostty 级窗口质感 + Starship 级 prompt + Chrome Theme 系统。
-**进度**: 11/15 任务完成。
+**进度**: **15/15 ✅**
 
-### 已完成(11 个 commit)
+### 已完成(15 个 commit)
 
 - ✅ **A1+A2** Nerd Font 内置 + Ghostty 风 chrome — `06c01b9`
   - JetBrainsMono Nerd Font Mono 4 权重 ttf 进 `Resources/Fonts/`(OFL)
@@ -208,19 +209,26 @@ open apps/mac/build/AirTerm.app
   - NSPanel 浮窗 + NSSearchField + NSTableView,substring filter
   - 命令:14 主题切换 / split / new tab / close pane / open config
   - 通过 Edit 菜单 ⇧⌘P 走 responder chain,无全局 event monitor
+- ✅ **C1** Onboarding 首启 + Preset 切换 UI — `22a01c9`(prompt preset 切换 5 套,通过 ⇧⌘P 命令面板)
+- ✅ **B3** 自定义 Tab Bar 替换原生 — `74468a4`
+  - `Tab` 模型持有 rootPane + paneContainer + activeTerminalView
+  - `TabIcon.iconFor(cwd:)` 按项目标记选 nf-icon(Cargo.toml/go.mod/package.json/pyproject.toml/git/home/folder)
+  - `TabBarView` 32pt 自渲染 tab strip,圆角 chip + accent 图标 + 主题色,左 80pt 给 traffic light,尾部 "+" 按钮
+  - `TabChipView` 悬停显示 ✕ close 按钮(active 永显);hitTest 吞所有 chip 内 click
+  - `TerminalWindow` 重构:`tabs: [Tab]` + `activeTabIndex`,`tabbingMode = .disallowed`
+  - 切 tab = reparent paneContainer(PTY session 跨 tab 切换不重启)
+  - ⌘T → addTab,⌘W → 级联 pane → tab → window;⌘1-9 selectTabByTag;⌃⇥/⌃⇧⇥ 走 selectNextTab/Previous
+  - statusBar + tabBar 都跟 OSC 7 cwd 变化刷新标题/图标
+- ✅ **B1+B2** ChromeTheme 整套切换 — `3eac616`
+  - `ChromeTheme.swift` 5 套静态 preset:pastel-powerline → catppuccin-mocha / tokyo-night → tokyo-night / gruvbox-rainbow → gruvbox-dark / jetpack → dracula / minimal → nord
+  - `apply()` 复制 prompt.toml + setTheme(named:)
+  - `Config.Chrome.preset` 字段,`[chrome] preset = "..."` toml 段
+  - `ConfigStore.applyChromePresetIfNeeded` 仅在 preset name 改变时 apply,避免编辑无关字段时反复覆盖 prompt.toml
+  - `ConfigStore.applyChromeTheme(_:)` 命令面板调:transient 不写回 toml(声明式持久化由用户手写)
+  - CommandPalette 加 5 个 "Chrome: ..." 顶置命令,优先于 14 个 Theme 和 5 个 Prompt Preset
 
-### 待办(4 个)
-
-| # | 任务 | 工时 | 备注 |
-|---|---|---|---|
-| **B3** | 自定义 Tab Bar(取代 macOS 原生)+ nf-icon 按 cwd 自动选 | 6h | 视觉再升一档 |
-| **B1** | ChromeTheme 概念 + TOML `[chrome]` 顶层段 | 3h | B2 依赖 |
-| **B2** | 5 套 ChromeTheme preset(整合 prompt + status + tab + 命令面板) | 6h | 把 5 套 starship preset 整体串起来 |
-| **C1** | Onboarding 首启 + 主题切换 UI | 4h | 一次性 |
-
-**核心产品命题(对标 Ghostty + Starship)已达成**:用户打开 AirTerm 看到 Ghostty 级 chrome + 自动注入 Starship 级 prompt + status bar + 5 套 prompt preset + ⇧⌘P 命令面板 + 14 套 color theme。剩余是把 ChromeTheme 系统串起来 + Tab Bar + Onboarding。
-
-**下次会话起步**: 推荐 B3(自定义 Tab Bar 视觉冲击大) → B1+B2(把 5 套 preset 升级成完整 ChromeTheme,影响 status bar + tab bar) → C1。
+### 核心产品命题已达成
+用户打开 AirTerm 即时获得:Ghostty 级 chrome + 自动注入 Starship 级 prompt + status bar + 自定义 tab bar(按项目自动选 nf-icon) + 5 套 ChromeTheme 整体切换 + ⇧⌘P 命令面板 + 14 套 color theme。Phase 2.5 收官。
 
 ---
 
