@@ -1,103 +1,201 @@
 # AirTerm
 
-隔空指挥你的 Claude Code 会话。
+A native macOS terminal you can take over from any browser.
 
-AirTerm 是一个 macOS 菜单栏应用，可以自动发现本机运行的 Claude Code CLI 会话，通过中继服务器将终端内容安全地推送到手机浏览器，让你随时随地监控任务进度、发送指令、确认操作。
+Open a tab on your laptop, head to lunch, keep typing on your phone. AirTerm
+ships a Ghostty-class native terminal for the Mac and a PWA mirror for any
+browser; pair them once with a QR code and the phone tracks the live shell —
+output, input, vim, htop, the lot.
 
-## 核心特性
+## Features
 
-- **自动发现** — 检测 Mac 上所有运行中的 Claude Code CLI 进程
-- **无侵入接管** — 通过 macOS Accessibility API 读写终端窗口，无需以特殊方式启动 CLI
-- **远程控制** — 手机浏览器即可查看输出、发送指令、点击确认
-- **零知识架构** — 端到端加密 (X25519 + ChaCha20-Poly1305)，中继服务器无法读取任何内容
-- **数据库加密** — SQLCipher (AES-256) 加密存储，密钥托管 macOS Keychain
-- **多会话管理** — 同时监控多个 Claude Code 会话，Tab 切换
-- **智能解析** — 解析 CLI 输出为结构化视图（diff、工具调用、确认请求）
-- **推送通知** — 任务完成或需要确认时推送到手机
+- **Native macOS terminal** — Metal-rendered grid, 120 fps when the display
+  cooperates, JetBrains Mono Nerd Font built in, custom tab bar, command
+  palette (⇧⌘P), 14 colour themes, 5 starship-flavoured prompts driven by a
+  bundled Rust prompt renderer (`airprompt`).
+- **Phone takeover** — scan a QR, get a live mirror in your browser. Soft
+  keyboard + a sticky toolbar (Esc / Tab / Ctrl-latch / arrows) so vim / htop
+  / Ctrl-C all work from a phone. Add to home screen for a native-feeling PWA.
+- **End-to-end encrypted** — Noise IK (Curve25519 + ChaCha20-Poly1305 +
+  SHA-256) between Mac and phone. The relay forwards opaque ciphertext and
+  cannot read frames, ever. Channel binding lets the user verify the
+  connection out of band.
+- **Self-healing connection** — a long-lived `ConnectionManager` re-runs the
+  Noise handshake whenever the WebSocket drops; the user sees
+  `Live → Reconnecting → Live` instead of a frozen mirror.
+- **Configurable** — `~/.config/airterm/config.toml`, hot-reloaded. Themes,
+  fonts, prompt presets, opacity, padding, cursor style. No GUI settings
+  panel; the file is the API.
 
-## 架构
+## Status
+
+This is the v1 development branch. The end-to-end product loop works locally
+(pair, mirror, type, reconnect, forget). Ad-hoc signed `.app` builds via the
+included scripts; Apple Developer ID signing + notarization is wired but not
+yet active (needs maintainer credentials). See `docs/PROGRESS.md` for the
+phase-by-phase ledger.
+
+## Architecture
 
 ```
-手机浏览器              中继服务器             Mac 菜单栏 App
-┌──────────┐  WSS   ┌────────────┐  WSS   ┌──────────────┐
-│ Web UI   │◄──────►│  消息转发    │◄──────►│ Accessibility │
-│ (React)  │  E2EE  │  (Hono)    │  E2EE  │ API + 进程管理 │
-└──────────┘        └────────────┘        └──────────────┘
+                  Apple Silicon / Intel Mac
+   ┌────────────────────────────────────────────────────────┐
+   │  AirTerm.app                                           │
+   │   ├── Metal terminal (Phase 1 + 2.5 chrome)            │
+   │   ├── airprompt (Rust, lipo'd universal)               │
+   │   ├── PairingService (Noise IK responder)              │
+   │   ├── PairingCoordinator (background WS listener)      │
+   │   ├── TakeoverSession (30 Hz screen broadcast +        │
+   │   │                    inbound input → PTY)            │
+   │   └── PairedDevicesWindow (manage / forget)            │
+   └─────────────────────────┬──────────────────────────────┘
+                             │ WSS
+                  ┌──────────▼──────────┐
+                  │    Relay server     │  ← Hono + WebSocketServer
+                  │ (TypeScript / Fly)  │     opaque payload forwarding,
+                  │                     │     pair gate + per-WS rate limit
+                  └──────────┬──────────┘
+                             │ WSS
+   ┌─────────────────────────▼──────────────────────────────┐
+   │  Phone PWA  (React 19 + Vite, no xterm.js)             │
+   │   ├── PairPage (BarcodeDetector QR + manual fallback)  │
+   │   ├── ConnectionManager (auto-rehandshake)             │
+   │   ├── TakeoverViewer (DOM grid, per-row diff)          │
+   │   └── MobileKeyToolbar (Esc/Tab/Ctrl/arrows)           │
+   └────────────────────────────────────────────────────────┘
 ```
 
-详见 [docs/architecture.md](docs/architecture.md)。
+Each frame: `TakeoverFrame` (typed JSON) → `NoiseCipherState.encrypt` →
+base64 `EncryptedFrame` → `SequencedMessage` → `RelayEnvelope` → WebSocket.
+The relay only sees the envelope. See `packages/protocol/src/` for the
+schemas (`signaling.ts`, `takeover.ts`).
 
-## 项目结构
+## Project layout
 
 ```
 airterm/
 ├── apps/
-│   ├── mac/          # macOS 菜单栏应用 (Swift + SwiftUI)
-│   ├── server/       # 中继服务器 (TypeScript + Hono)
-│   └── web/          # 手机端 Web UI (React + Tailwind)
+│   ├── mac/                 # macOS app — Swift + AppKit + Metal
+│   │   ├── AirTerm/
+│   │   ├── scripts/         # bundle.sh, dmg.sh
+│   │   └── Package.swift
+│   ├── server/              # Relay — Hono + better-sqlite3
+│   │   ├── src/
+│   │   ├── Dockerfile
+│   │   └── fly.toml
+│   └── web/                 # Phone PWA — React 19 + Vite
+│       ├── src/
+│       ├── public/          # manifest.webmanifest, icon.svg
+│       └── index.html
 ├── packages/
-│   └── crypto/       # 共享加密模块 (TypeScript)
-└── docs/             # 文档
+│   ├── protocol/            # Shared TS types (envelopes, signaling, takeover)
+│   └── crypto/              # Noise IK + X25519 + ChaCha20-Poly1305
+├── tools/
+│   └── airprompt/           # Rust prompt renderer (libgit2 + chrono)
+└── docs/                    # PROGRESS.md, ROADMAP.md, etc.
 ```
 
-## 快速开始
+## Quick start (development)
 
-### 前置条件
-
-- macOS 14.0+
-- Xcode 15+
-- Node.js 20+
-- pnpm 9+
-- 一台有公网 IP 的服务器（用于中继）
-
-### 1. 部署中继服务器
+Prereqs: macOS 14+, Xcode 15+ (or Command Line Tools for Swift only),
+Node 22+, pnpm 10+, Rust + cargo (any stable).
 
 ```bash
-cd apps/server
+git clone git@github.com:jyma/airterm.git
+cd airterm
 pnpm install
-cp .env.example .env  # 编辑配置
-pnpm build
-docker compose up -d
+
+# Terminal 1 — relay
+pnpm --filter @airterm/server dev          # http://localhost:3000
+
+# Terminal 2 — phone PWA
+pnpm --filter @airterm/web dev             # http://localhost:5173
+
+# Terminal 3 — Mac app
+AIRTERM_RELAY_URL=http://localhost:3000 \
+  bash apps/mac/scripts/bundle.sh
+open apps/mac/build/AirTerm.app
 ```
 
-### 2. 安装 Mac 应用
+Mac → File → Pair New Device. Scan from the phone PWA at
+`http://localhost:5173/pair`, or paste the JSON shown beneath the QR if the
+camera path is unhelpful. The phone routes through `ConnectionManager`,
+runs Noise IK, and lands on a live mirror.
+
+## Distribution builds
 
 ```bash
-cd apps/mac
-open AirTerm.xcodeproj
-# Xcode 中 Build & Run
+# Universal .app (x86_64 + arm64 lipo'd airprompt, swift -c release)
+bash apps/mac/scripts/bundle.sh --release
+
+# Wrap into a drag-to-Applications DMG
+bash apps/mac/scripts/dmg.sh
+
+# Result: apps/mac/build/AirTerm-0.1.0.dmg
 ```
 
-首次启动需授予 **辅助功能权限**（系统设置 → 隐私与安全 → 辅助功能）。
+A tag-driven GitHub workflow (`.github/workflows/release.yml`) does both on
+`v*` tags and publishes the DMG as a release asset.
 
-### 3. 手机访问
+The relay container builds via `apps/server/Dockerfile` (3-stage, slim
+runtime). `apps/server/fly.toml` deploys to fly.io with a persistent volume
+for the SQLite store; `fly deploy` from `apps/server/`.
 
-1. Mac 应用菜单栏点击 AirTerm 图标
-2. 选择「配对新设备」→ 显示二维码
-3. 手机扫码 → 自动打开 Web 控制台
-4. 完成配对，开始使用
+## Tests
 
-## 技术栈
+```bash
+pnpm test                 # 150 tests across protocol / crypto / web / server
+pnpm lint                 # eslint
+swift build               # in apps/mac/, just to verify the bundle compiles
+```
 
-| 组件       | 技术                              |
-| ---------- | --------------------------------- |
-| Mac 应用   | Swift, SwiftUI, Accessibility API |
-| 中继服务器 | TypeScript, Hono, WebSocket       |
-| Web 前端   | React, Tailwind CSS               |
-| 加密       | X25519, ChaCha20-Poly1305         |
-| 部署       | Docker, Let's Encrypt             |
+E2E lives in `apps/server/src/__tests__/noise-pair-e2e.test.ts`: spins up a
+real Hono + WS server, simulates Mac + Phone with `@airterm/crypto`, and
+walks the entire pair → IK → screen frame round trip in ~250 ms.
 
-## 文档
+## Configuration
 
-- [产品需求文档](docs/prd.md) — 用户角色、功能需求、MVP 定义、用户流程
-- [架构设计](docs/architecture.md) — 系统组件、数据流、生命周期
-- [安全方案](docs/security.md) — 六层安全防护体系
-- [隐私与数据安全](docs/privacy.md) — 零知识架构、数据库加密、数据生命周期
-- [UI 设计规范](docs/ui-design.md) — 色彩体系、组件样式、动画、响应式布局
-- [通信协议](docs/protocol.md) — WebSocket 消息格式、错误码
-- [开发指南](docs/development.md) — 目录结构、调试、测试
-- [部署指南](docs/deployment.md) — Docker、HTTPS、监控
+`~/.config/airterm/config.toml` is created on first launch with every
+setting commented. Hot-reloaded; no restart needed. Highlights:
+
+```toml
+[font]
+family = "JetBrainsMonoNFM-Regular"
+size = 14
+
+[theme]
+name = "catppuccin-mocha"           # one of 14 built-ins
+# light = "catppuccin-latte"         # auto-follow Appearance pair
+# dark  = "catppuccin-mocha"
+
+[chrome]
+# Optional: bundle prompt + colour theme as one preset.
+# preset = "tokyo-night"
+
+[shell]
+inject_prompt = true                # use airprompt without touching .zshrc
+```
+
+`~/.config/airterm/prompt.toml` controls the bundled `airprompt` renderer.
+The command palette ships five starship-style preset writers
+(`pastel-powerline` / `tokyo-night` / `gruvbox-rainbow` / `jetpack` /
+`minimal`).
+
+## Decisions / non-goals
+
+- **Mac UI:** AppKit primary, SwiftUI deferred to settings windows. Metal
+  is non-negotiable for the terminal grid.
+- **Phone UI:** Pure React DOM grid. We considered `xterm.js` but the Mac
+  parses ANSI to typed cells already; phone just renders.
+- **Transport (today):** Noise transport over the WS relay. Latency target
+  for v1 is "interactive but not gaming-grade".
+- **Transport (next):** WebRTC P2P DataChannel + TURN fallback (coturn).
+  SDP/ICE schema already exists; the libwebrtc Swift integration is the
+  remaining work.
+- **Dotfiles:** AirTerm never modifies the user's `.zshrc` / `.bashrc`. It
+  injects prompts via `ZDOTDIR` / `--rcfile` shims and yields cleanly to
+  starship / p10k / oh-my-zsh when they're already configured.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE) for details.
