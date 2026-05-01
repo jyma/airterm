@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
     private var pairingWindow: PairingWindow?
+    private var pairedDevicesWindow: PairedDevicesWindow?
     /// Live takeover sessions keyed by phoneDeviceId. The window keeps
     /// running after PairingWindow is dismissed; tearing one down only
     /// happens when the phone says bye, the WS dies, or the user
@@ -109,6 +110,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleCommandPalette(_ sender: Any?) {
         CommandPalette.shared.toggle(from: NSApp.keyWindow)
+    }
+
+    @objc func openPairedDevicesWindow(_ sender: Any?) {
+        if pairedDevicesWindow == nil {
+            let window = PairedDevicesWindow()
+            window.activePhoneIdsProvider = { [weak self] in
+                Set(self?.takeoverSessions.keys ?? [:].keys)
+            }
+            window.onForget = { [weak self] phoneDeviceId in
+                self?.forgetPhone(phoneDeviceId)
+            }
+            pairedDevicesWindow = window
+        }
+        pairedDevicesWindow?.reload()
+        pairedDevicesWindow?.center()
+        pairedDevicesWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Tear down a phone end-to-end: stop any live mirror, drop the
+    /// coordinator's trust set entry, clear the persisted record. Called
+    /// from the Paired Devices panel and (later) from a per-phone
+    /// command palette entry.
+    private func forgetPhone(_ phoneDeviceId: String) {
+        if let session = takeoverSessions.removeValue(forKey: phoneDeviceId) {
+            session.stop(reason: "forgotten")
+        }
+        pairingCoordinator?.revoke(phoneDeviceId: phoneDeviceId)
+        // revoke() above already calls PairingStore.remove + closes any
+        // pending responder, but in case the coordinator wasn't running
+        // (no paired phones at launch) make sure the record is gone.
+        PairingStore.remove(deviceId: phoneDeviceId)
+        // If this was the last phone, the coordinator has nothing to
+        // listen for; tear it down.
+        if PairingStore.loadPairedPhones().isEmpty {
+            teardownPairingCoordinator()
+        }
     }
 
     @objc func openPairingWindow(_ sender: Any?) {
@@ -221,6 +258,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         pair.target = self
+
+        let paired = fileMenu.addItem(
+            withTitle: "Paired Devices…",
+            action: #selector(AppDelegate.openPairedDevicesWindow(_:)),
+            keyEquivalent: ""
+        )
+        paired.target = self
 
         fileMenu.addItem(NSMenuItem.separator())
 

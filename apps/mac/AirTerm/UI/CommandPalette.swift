@@ -299,6 +299,30 @@ struct Command {
             ))
         }
 
+        // Pairing actions — surface both flows in the palette so the
+        // keyboard-only workflow can reach them without touching the
+        // File menu.
+        out.append(Command(
+            icon: "\u{f0c2}",  //   cloud (pair / takeover)
+            title: "Pair New Device",
+            subtitle: "Open the QR pair panel",
+            run: { _ in
+                if let app = NSApp.delegate as? AppDelegate {
+                    app.openPairingWindow(nil)
+                }
+            }
+        ))
+        out.append(Command(
+            icon: "\u{f3cd}",  //   mobile / phone
+            title: "Paired Devices…",
+            subtitle: "List + forget paired phones",
+            run: { _ in
+                if let app = NSApp.delegate as? AppDelegate {
+                    app.openPairedDevicesWindow(nil)
+                }
+            }
+        ))
+
         // Config: open the file in the user's editor. The file watcher in
         // ConfigStore picks up saves automatically — no explicit reload
         // command needed.
