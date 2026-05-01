@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ATTR_BOLD,
   ATTR_DIM,
@@ -13,6 +13,7 @@ import {
   type TakeoverFrame,
 } from '@airterm/protocol'
 import type { TakeoverChannel } from '../lib/takeover-channel'
+import { bytesToBase64, keyToBytes } from '../lib/key-mapper'
 
 /// Phone-side terminal mirror. Subscribes to inbound TakeoverFrames
 /// from a live `TakeoverChannel` and renders the cell grid as a stack
@@ -104,6 +105,9 @@ export function TakeoverViewer({
   const [state, setState] = useState<ViewState>(() =>
     emptyState(initialRows, initialCols)
   )
+  const [keysSent, setKeysSent] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputSeqRef = useRef(0)
 
   useEffect(() => {
     channel.onFrame = (frame) => {
@@ -120,17 +124,57 @@ export function TakeoverViewer({
     }
   }, [channel])
 
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const bytes = keyToBytes(event.nativeEvent)
+      if (!bytes) return
+      // Block the browser default ONLY when we recognised the key —
+      // otherwise the user can't shift-tab out of the viewer.
+      event.preventDefault()
+      try {
+        channel.sendFrame({
+          kind: 'input_event',
+          seq: inputSeqRef.current++,
+          bytes: bytesToBase64(bytes),
+        })
+        setKeysSent((n) => n + 1)
+      } catch {
+        // Channel closed — silently ignore; the parent route will
+        // navigate away when WS dies.
+      }
+    },
+    [channel]
+  )
+
+  // Auto-focus on mount so users can start typing immediately on
+  // desktop. On phones, the visible keyboard pops up only after the
+  // user taps the surface anyway, so this is a no-op there.
+  useEffect(() => {
+    containerRef.current?.focus()
+  }, [])
+
   return (
     <section style={containerStyle}>
       {state.title && <header style={titleStyle}>{state.title}</header>}
-      <Grid state={state} />
+      <div
+        ref={containerRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        style={focusableStyle}
+      >
+        <Grid state={state} />
+      </div>
       <footer style={footerStyle}>
         {state.framesReceived === 0
           ? 'Waiting for Mac to start broadcasting…'
-          : `${state.cols}×${state.rows} · ${state.framesReceived} frames`}
+          : `${state.cols}×${state.rows} · ${state.framesReceived} frames in · ${keysSent} keys out`}
       </footer>
     </section>
   )
+}
+
+const focusableStyle: React.CSSProperties = {
+  outline: 'none',
 }
 
 interface GridProps {
