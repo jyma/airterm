@@ -34,6 +34,13 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
     }
 
     var onMessage: (([String: Any]) -> Void)?
+    /// Optional richer callback that includes the originating peer's
+    /// device id (the `from` field of the relay envelope). When set,
+    /// inbound `relay`-typed envelopes go here instead of `onMessage`,
+    /// so multi-peer routers (PairingCoordinator) know which phone a
+    /// frame belongs to. Server-pushed messages (no `from`, e.g.
+    /// pair_completed) still flow through `onMessage`.
+    var onRelayFrame: ((_ from: String, _ payload: [String: Any]) -> Void)?
     var onStateChange: ((State) -> Void)?
 
     init(serverURL: String, token: String, deviceId: String, role: String = "mac") {
@@ -159,17 +166,26 @@ final class RelayClient: NSObject, @unchecked Sendable, URLSessionWebSocketDeleg
            let payload = json["payload"] as? String,
            let decoded = decodePayload(payload) {
             // Unwrap SequencedMessage: extract .message if present
+            let inner: [String: Any]
             if let message = decoded["message"] as? [String: Any] {
                 if let peerSeq = decoded["seq"] as? Int {
                     lastAck = max(lastAck, peerSeq)
                 }
-                onMessage?(message)
+                inner = message
             } else {
-                // Fallback: treat entire decoded payload as business message
-                onMessage?(decoded)
+                inner = decoded
+            }
+            // Prefer the richer callback when set so multi-peer routers
+            // can dispatch by sender; fall back to the legacy single-
+            // listener path so existing call sites keep working.
+            if let from = json["from"] as? String, let f = onRelayFrame {
+                f(from, inner)
+            } else {
+                onMessage?(inner)
             }
         } else {
-            // Non-relay messages (e.g., pair_completed from server)
+            // Non-relay messages (e.g., pair_completed from server) —
+            // server pushes never carry a `from`.
             onMessage?(json)
         }
     }

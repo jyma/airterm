@@ -1,20 +1,83 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clearPairing, getStoredPairing } from '../lib/storage'
+import { TakeoverViewer } from '../components/TakeoverViewer'
+import { runPhoneReconnectFlow, PairingInfoMissingFieldsError } from '../lib/reconnect-flow'
+import type { PairFlowResult } from '../lib/pair-flow'
+import { clearPairing, getStoredPairing, storePairing } from '../lib/storage'
 
-/// Minimal landing for paired devices. Phase 3's job is just to land
-/// here after a successful pair — the takeover surface (terminal mirror,
-/// command UI) lands in a later phase. For now we expose:
-///   • the paired Mac's name + last-paired timestamp
-///   • a "Forget" button so users can re-pair without devtools
+/// Landing page for already-paired browsers. Walks the user through
+/// reconnect on mount: load stored pairing → re-run Noise IK against
+/// the saved Mac static → mount TakeoverViewer if the handshake
+/// succeeds. Failures (Mac offline, stale token) surface inline with
+/// a "Re-pair" button instead of bouncing back to /pair, so the user
+/// keeps their stored Mac context until they explicitly reset.
+type Status =
+  | { kind: 'idle' }
+  | { kind: 'reconnecting' }
+  | { kind: 'live'; pair: PairFlowResult }
+  | { kind: 'error'; message: string }
+
 export function PairedPage() {
   const navigate = useNavigate()
   const stored = getStoredPairing()
+  const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  // Guard so React 18 strict-mode double-mount doesn't double-handshake.
+  const startedRef = useRef(false)
 
-  if (!stored) {
-    // Came here without a stored pairing (e.g. clearing storage in another
-    // tab) — bounce back to /pair so the user re-establishes.
-    navigate('/pair', { replace: true })
-    return null
+  useEffect(() => {
+    if (!stored) {
+      navigate('/pair', { replace: true })
+      return
+    }
+    if (startedRef.current) return
+    startedRef.current = true
+    setStatus({ kind: 'reconnecting' })
+
+    runPhoneReconnectFlow(stored)
+      .then((pair) => {
+        storePairing(pair.pairingInfo)
+        setStatus({ kind: 'live', pair })
+      })
+      .catch((err) => {
+        const message =
+          err instanceof PairingInfoMissingFieldsError
+            ? 'This pairing was created by an older build that did not capture the Mac public key. Re-pair to upgrade.'
+            : err instanceof Error
+              ? err.message
+              : 'Reconnect failed.'
+        setStatus({ kind: 'error', message })
+      })
+    // No deps: stored only matters at mount; it doesn't change while we live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (!stored) return null
+
+  if (status.kind === 'live') {
+    return (
+      <main style={pageStyle}>
+        <header style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+            Mirroring {stored.targetName}
+          </h1>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+            Reconnected · refresh to re-handshake
+          </p>
+        </header>
+        <TakeoverViewer channel={status.pair.channel} />
+        <button
+          type="button"
+          style={dangerButtonStyle}
+          onClick={() => {
+            try { status.pair.ws.disconnect() } catch { /* may be closed */ }
+            clearPairing()
+            navigate('/pair', { replace: true })
+          }}
+        >
+          Forget this Mac
+        </button>
+      </main>
+    )
   }
 
   return (
@@ -29,13 +92,18 @@ export function PairedPage() {
       <dl style={dlStyle}>
         <DetailRow label="Server" value={stored.serverUrl} />
         <DetailRow label="Mac device id" value={short(stored.targetDeviceId)} mono />
-        <DetailRow label="Paired" value={formatDate(stored.pairedAt)} />
+        <DetailRow label="Last paired" value={formatDate(stored.pairedAt)} />
       </dl>
 
-      <p style={hintStyle}>
-        The takeover surface ships in a later phase. Once the Mac
-        publishes its terminal stream, you'll see it here.
-      </p>
+      {status.kind === 'reconnecting' && (
+        <p style={hintStyle}>Reconnecting securely to {stored.targetName}…</p>
+      )}
+      {status.kind === 'error' && (
+        <div style={errorBoxStyle} role="alert">
+          <p style={{ margin: 0, fontWeight: 500 }}>Couldn't reconnect</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13 }}>{status.message}</p>
+        </div>
+      )}
 
       <button
         type="button"
@@ -116,6 +184,14 @@ const hintStyle: React.CSSProperties = {
   fontSize: 13,
   color: 'var(--color-text-muted)',
   lineHeight: 1.5,
+}
+
+const errorBoxStyle: React.CSSProperties = {
+  padding: 12,
+  background: 'var(--color-diff-del-bg)',
+  color: 'var(--color-diff-del-text)',
+  borderRadius: 'var(--radius-button)',
+  fontSize: 14,
 }
 
 const dangerButtonStyle: React.CSSProperties = {

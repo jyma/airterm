@@ -8,6 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// happens when the phone says bye, the WS dies, or the user
     /// explicitly stops it from a Settings UI (later phase).
     private var takeoverSessions: [String: TakeoverSession] = [:]
+    /// Background reconnect listener — lazily created when at least
+    /// one paired phone exists. Phone reconnects after a refresh land
+    /// here without the user touching "Pair New Device" again.
+    private var pairingCoordinator: PairingCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Run the Noise IK self-test at launch in DEBUG builds. This catches
@@ -39,6 +43,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)
+
+        // If a phone has paired with us before, start listening for
+        // its Noise reconnect handshake in the background. The
+        // listener is a no-op until a phone shows up.
+        bootPairingCoordinator()
+    }
+
+    /// Stand up (or rebuild) the background reconnect listener. Called
+    /// at launch and after every TakeoverSession ends, so the WS that
+    /// the takeover owned gets re-acquired by the listener.
+    private func bootPairingCoordinator() {
+        // Only re-create if there's actually something to listen for —
+        // first-time users haven't paired yet.
+        guard PairingStore.loadMacToken() != nil,
+              !PairingStore.loadPairedPhones().isEmpty else {
+            return
+        }
+        // Suppress while a TakeoverSession owns the only Mac WS slot
+        // the server allows for this device id. The session's onEnded
+        // hook retriggers bootPairingCoordinator.
+        guard takeoverSessions.isEmpty else { return }
+
+        let serverURL = ProcessInfo.processInfo.environment["AIRTERM_RELAY_URL"]
+            ?? "https://relay.airterm.dev"
+        let macDeviceId = MacDeviceID.stableId()
+        let identity = KeyStore.loadOrCreateStaticIdentity()
+        let macStatic = NoiseKeyPair(
+            privateKey: identity.privateKey.rawRepresentation,
+            publicKey: identity.publicKeyData
+        )
+
+        let coordinator = PairingCoordinator(
+            serverURL: serverURL,
+            macDeviceId: macDeviceId,
+            macStaticKeyPair: macStatic
+        )
+        coordinator.onReconnectCompleted = { [weak self] handoff in
+            self?.startTakeover(handoff: handoff)
+        }
+        coordinator.start()
+        self.pairingCoordinator = coordinator
+    }
+
+    private func teardownPairingCoordinator() {
+        pairingCoordinator?.stop()
+        pairingCoordinator = nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -62,6 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openPairingWindow(_ sender: Any?) {
+        // The reconnect listener and PairingWindow both want a
+        // RelayClient on the same Mac token, but the server's
+        // WSManager only keeps one WS per deviceId. Pause the listener
+        // while the user is actively pairing; bootPairingCoordinator
+        // re-creates it after the panel closes / takeover ends.
+        teardownPairingCoordinator()
         // Lazy-create so the user pays the network init cost only when
         // they actually want to pair. Reuse an existing window so a
         // double-click on the menu item just brings the panel forward.
@@ -112,10 +168,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             transport: handoff.transport
         )
         session.onEnded = { [weak self] _ in
-            self?.takeoverSessions.removeValue(forKey: handoff.phoneDeviceId)
+            guard let self else { return }
+            self.takeoverSessions.removeValue(forKey: handoff.phoneDeviceId)
+            // Once nobody's actively mirroring, the listener can take
+            // back the WS so the *next* phone reconnect (or this same
+            // phone after a refresh) lands cleanly without the user
+            // having to re-pair.
+            if self.takeoverSessions.isEmpty {
+                self.bootPairingCoordinator()
+            }
         }
         session.start()
         takeoverSessions[handoff.phoneDeviceId] = session
+        pairingCoordinator?.registerActiveSession(session, for: handoff.phoneDeviceId)
     }
 
     private func installMainMenu() {
