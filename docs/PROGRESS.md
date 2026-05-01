@@ -300,7 +300,11 @@ open apps/mac/build/AirTerm.app
 - ✅ **P4-Wire-Mac** TakeoverEncoder + TakeoverSession + AppDelegate 接管 RelayClient(`28fc074`)— Mac 端 30Hz 广播 ScreenSnapshot/Delta + 反向 InputEvent → PTY + Resize 处理
 - ✅ **P4-Wire-Web** TakeoverViewer DOM grid + PairPage handoff(`a9b94d1`)— phone 实时渲染 cell 网格,无 xterm.js,直接读 CellFrame 走 React DOM
 - ✅ **P4-Wire-Web-Input** 键盘 → InputEvent(`9cfe963`)— keyToBytes 映射所有终端键(printable / 名键 / Ctrl-letter / Alt-letter),phone 输入直达 Mac PTY,19 tests
-- ⏳ **P4-Reconnect** 刷新页面后 phone 重新走 Noise 握手(用 stored token + identity)+ Mac 后台 RelayClient 自动 listen 已配对 phone 的握手请求
+- ✅ **P4-Reconnect** 刷新页面后 phone 重新握手 + Mac 后台 listen(`03f87e4`)
+  - Mac:`PairingCoordinator` 启动时从 PairingStore 读 token+paired phones,开 RelayClient,routes by `from`(新 `onRelayFrame` callback);Noise stage-1 → NoisePairResponder → 同 `PairingHandoff` 给 AppDelegate;活跃 takeover 期间暂停 coordinator(server one-WS-per-deviceId),takeover 结束自动 reboot
+  - Web:`reconnect-flow.ts` 跳 HTTP 只重跑 Noise IK 用 stored {token, macPublicKey, phoneIdentity};PairedPage 重写在 mount 时驱动,失败 inline 出错不丢 stored 上下文;startedRef 防 React strict-mode 双触发
+  - **效果**:phone 刷新 → 自动重连 → 终端实时 mirror,无需重新扫码
+- ⏳ **P4-Hub**(优化)单一 RelayClient 多订阅 — 干掉"PairingWindow 临时踢 coordinator"的 WS flap
 - ⏳ **P4.x** 切 WebRTC P2P 替代 WS relay(libwebrtc Swift + 浏览器原生 RTCPeerConnection;SDP/ICE 已经有 schema)
 
 **Phase 4 MVP 数据面闭合 ✅**:Mac 30Hz 广播 → phone DOM grid 实时渲染 → phone 键盘 → InputEvent → Mac PTY。全程经 Noise transport 加密,relay 看不见明文。
