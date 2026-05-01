@@ -118,9 +118,8 @@ export function TakeoverViewer({
       setState((prev) => reduce(prev, frame))
     }
     channel.onError = () => {
-      // Surface in a future status pill; for now, log.
-      // eslint-disable-next-line no-console
-      console.warn('takeover channel error')
+      // Surface in a future status pill; ConnectionPill in the
+      // parent already covers the WS-level state.
     }
     return () => {
       channel.onFrame = () => {}

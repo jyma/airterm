@@ -174,16 +174,10 @@ describe('Noise IK pair E2E (server + simulated Mac + simulated Phone)', () => {
     // the real Noise transport CipherStates and verify both sides
     // decode the typed `TakeoverFrame` they expect.
 
-    const macTakeoverOutbox: unknown[] = []
-    const phoneTakeoverOutbox: unknown[] = []
-    let macSendCounter = 0
-    let phoneSendCounter = 0
-
     function sendEncryptedFrom(
       ws: WebSocket,
       from: string,
       to: string,
-      sender: 'mac' | 'phone',
       cipher: ReturnType<typeof macFinal.send.encrypt> extends Uint8Array ? Uint8Array : never,
       seq: number
     ): void {
@@ -192,8 +186,6 @@ describe('Noise IK pair E2E (server + simulated Mac + simulated Phone)', () => {
         seq,
         ciphertext: bufToB64(cipher),
       })
-      if (sender === 'mac') macTakeoverOutbox.push(seq)
-      else phoneTakeoverOutbox.push(seq)
     }
 
     // Mac → Phone: screen snapshot
@@ -209,7 +201,7 @@ describe('Noise IK pair E2E (server + simulated Mac + simulated Phone)', () => {
     }
     const screenPlain = new TextEncoder().encode(JSON.stringify(screenFrame))
     const screenCipher = macFinal.send.encrypt(screenPlain)
-    sendEncryptedFrom(macWs, 'mac-e2e', 'phone-e2e', 'mac', screenCipher, macSendCounter++)
+    sendEncryptedFrom(macWs, 'mac-e2e', 'phone-e2e', screenCipher, 0)
 
     const screenInbound = await waitForEncryptedFrame(phoneInbox)
     const screenPlainRecovered = phoneFinal.receive.decrypt(
@@ -229,7 +221,7 @@ describe('Noise IK pair E2E (server + simulated Mac + simulated Phone)', () => {
     }
     const inputPlain = new TextEncoder().encode(JSON.stringify(inputFrame))
     const inputCipher = phoneFinal.send.encrypt(inputPlain)
-    sendEncryptedFrom(phoneWs, 'phone-e2e', 'mac-e2e', 'phone', inputCipher, phoneSendCounter++)
+    sendEncryptedFrom(phoneWs, 'phone-e2e', 'mac-e2e', inputCipher, 0)
 
     const inputInbound = await waitForEncryptedFrame(macInbox)
     const inputPlainRecovered = macFinal.receive.decrypt(

@@ -7,7 +7,8 @@ on:
     branches: [main, master, redesign]
 
 jobs:
-  test:
+  ts:
+    name: TypeScript (lint + typecheck + test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,12 +23,55 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm test
-      - run: pnpm lint
+
+      # Build first so workspace package types resolve when web typechecks
+      # imports from @airterm/protocol / @airterm/crypto.
+      - name: Build packages
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck (web)
+        working-directory: apps/web
+        run: pnpm exec tsc -b --noEmit
+
+      - name: Tests
+        run: pnpm test
+
+  mac:
+    name: macOS (swift build)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      # GitHub-hosted macos-14 runners come with Xcode pre-installed,
+      # which is what `swift build` needs to find the macOS SDK. The
+      # MetalKit / AppKit / Foundation imports won't compile without it.
+      - name: Show toolchain
+        run: |
+          xcrun --show-sdk-path
+          swift --version
+
+      - name: Resolve packages
+        working-directory: apps/mac
+        run: swift package resolve
+
+      - name: Build
+        working-directory: apps/mac
+        run: swift build -c debug
+
+      # `swift test` is intentionally not run here: AirTerm's dev box
+      # doesn't have XCTest available under Command Line Tools, but
+      # GitHub macos-14 does. Re-enable once the test target's
+      # dependencies stabilise — for now the canonical contract tests
+      # live in the TS workspace (Noise interop, takeover frames).
+      # - name: Test
+      #   working-directory: apps/mac
+      #   run: swift test
 
   deploy-web:
-    needs: test
+    needs: ts
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

@@ -53,7 +53,8 @@ export function PairedPage() {
       manager.stop()
       managerRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Stored pairing only matters at mount; the manager handles
+    // mid-session reconnect on its own.
   }, [])
 
   if (!stored) return null

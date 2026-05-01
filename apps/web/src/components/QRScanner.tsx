@@ -120,8 +120,7 @@ export function QRScanner({ onResult, onError }: QRScannerProps) {
       streamRef.current?.getTracks().forEach((t) => t.stop())
       streamRef.current = null
     }
-    // intentionally omit handlers — they're stable for a given scanner mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally omit handlers — they're stable for a given scanner mount.
   }, [])
 
   return (

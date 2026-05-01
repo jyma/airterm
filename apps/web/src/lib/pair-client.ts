@@ -70,7 +70,7 @@ export async function completePair(
         phoneName,
       }),
     })
-  } catch (e) {
+  } catch {
     throw new PairClientError(
       'network',
       `Could not reach the relay server at ${qr.server}.`
