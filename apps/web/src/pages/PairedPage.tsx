@@ -1,27 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ConnectionPill } from '../components/ConnectionPill'
 import { TakeoverViewer } from '../components/TakeoverViewer'
-import { runPhoneReconnectFlow, PairingInfoMissingFieldsError } from '../lib/reconnect-flow'
-import type { PairFlowResult } from '../lib/pair-flow'
-import { clearPairing, getStoredPairing, storePairing } from '../lib/storage'
+import { ConnectionManager, type ConnState } from '../lib/connection-manager'
+import { PairingInfoMissingFieldsError } from '../lib/reconnect-flow'
+import { clearPairing, getStoredPairing } from '../lib/storage'
+import type { TakeoverChannel } from '../lib/takeover-channel'
 
-/// Landing page for already-paired browsers. Walks the user through
-/// reconnect on mount: load stored pairing → re-run Noise IK against
-/// the saved Mac static → mount TakeoverViewer if the handshake
-/// succeeds. Failures (Mac offline, stale token) surface inline with
-/// a "Re-pair" button instead of bouncing back to /pair, so the user
-/// keeps their stored Mac context until they explicitly reset.
-type Status =
-  | { kind: 'idle' }
-  | { kind: 'reconnecting' }
-  | { kind: 'live'; pair: PairFlowResult }
-  | { kind: 'error'; message: string }
-
+/// Landing page for already-paired browsers. Owns a long-lived
+/// `ConnectionManager` so a Mac restart, a network blip, or a
+/// background-tab freeze all recover automatically — the user sees
+/// the connection pill flip "Live → Reconnecting → Live" without
+/// having to navigate, refresh, or re-pair.
 export function PairedPage() {
   const navigate = useNavigate()
   const stored = getStoredPairing()
-  const [status, setStatus] = useState<Status>({ kind: 'idle' })
-  // Guard so React 18 strict-mode double-mount doesn't double-handshake.
+  const [state, setState] = useState<ConnState>('connecting')
+  const [channel, setChannel] = useState<TakeoverChannel | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const managerRef = useRef<ConnectionManager | null>(null)
   const startedRef = useRef(false)
 
   useEffect(() => {
@@ -31,84 +28,61 @@ export function PairedPage() {
     }
     if (startedRef.current) return
     startedRef.current = true
-    setStatus({ kind: 'reconnecting' })
 
-    runPhoneReconnectFlow(stored)
-      .then((pair) => {
-        storePairing(pair.pairingInfo)
-        setStatus({ kind: 'live', pair })
-      })
-      .catch((err) => {
+    const manager = new ConnectionManager({
+      stored,
+      onStateChange: (s) => {
+        setState(s)
+        if (s === 'live' || s === 'connecting' || s === 'handshaking') {
+          setErrorMessage(null)
+        }
+      },
+      onChannelChange: (c) => setChannel(c),
+      onError: (err) => {
         const message =
           err instanceof PairingInfoMissingFieldsError
             ? 'This pairing was created by an older build that did not capture the Mac public key. Re-pair to upgrade.'
-            : err instanceof Error
-              ? err.message
-              : 'Reconnect failed.'
-        setStatus({ kind: 'error', message })
-      })
-    // No deps: stored only matters at mount; it doesn't change while we live.
+            : err.message || 'Connection failed.'
+        setErrorMessage(message)
+      },
+    })
+    managerRef.current = manager
+    void manager.start()
+
+    return () => {
+      manager.stop()
+      managerRef.current = null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (!stored) return null
 
-  if (status.kind === 'live') {
-    return (
-      <main style={pageStyle}>
-        <header style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-            Mirroring {stored.targetName}
-          </h1>
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Reconnected · refresh to re-handshake
-          </p>
-        </header>
-        <TakeoverViewer channel={status.pair.channel} />
-        <button
-          type="button"
-          style={dangerButtonStyle}
-          onClick={() => {
-            try { status.pair.ws.disconnect() } catch { /* may be closed */ }
-            clearPairing()
-            navigate('/pair', { replace: true })
-          }}
-        >
-          Forget this Mac
-        </button>
-      </main>
-    )
-  }
-
   return (
     <main style={pageStyle}>
-      <header style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Paired</h1>
-        <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>
-          Connected to <strong>{stored.targetName}</strong>
-        </p>
+      <header style={headerRow}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+            {stored.targetName}
+          </h1>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+            {stored.serverUrl}
+          </p>
+        </div>
+        <ConnectionPill state={state} />
       </header>
 
-      <dl style={dlStyle}>
-        <DetailRow label="Server" value={stored.serverUrl} />
-        <DetailRow label="Mac device id" value={short(stored.targetDeviceId)} mono />
-        <DetailRow label="Last paired" value={formatDate(stored.pairedAt)} />
-      </dl>
-
-      {status.kind === 'reconnecting' && (
-        <p style={hintStyle}>Reconnecting securely to {stored.targetName}…</p>
-      )}
-      {status.kind === 'error' && (
-        <div style={errorBoxStyle} role="alert">
-          <p style={{ margin: 0, fontWeight: 500 }}>Couldn't reconnect</p>
-          <p style={{ margin: '4px 0 0', fontSize: 13 }}>{status.message}</p>
-        </div>
+      {channel && state === 'live' ? (
+        <TakeoverViewer channel={channel} />
+      ) : (
+        <PlaceholderPanel state={state} message={errorMessage} />
       )}
 
       <button
         type="button"
         style={dangerButtonStyle}
         onClick={() => {
+          managerRef.current?.stop()
           clearPairing()
           navigate('/pair', { replace: true })
         }}
@@ -119,74 +93,76 @@ export function PairedPage() {
   )
 }
 
-interface DetailRowProps {
-  readonly label: string
-  readonly value: string
-  readonly mono?: boolean
+interface PlaceholderProps {
+  readonly state: ConnState
+  readonly message: string | null
 }
 
-function DetailRow({ label, value, mono }: DetailRowProps) {
+/// Renders while we're not in the `live` state. Splits the messaging
+/// between transient (we'll recover) vs terminal (manual action
+/// required) so users know whether to wait or re-pair.
+function PlaceholderPanel({ state, message }: PlaceholderProps) {
+  const transient =
+    state === 'connecting' ||
+    state === 'handshaking' ||
+    state === 'disconnected'
   return (
-    <div style={rowStyle}>
-      <dt style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>{label}</dt>
-      <dd
-        style={{
-          margin: 0,
-          fontSize: 14,
-          color: 'var(--color-text-primary)',
-          fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-          wordBreak: 'break-all',
-        }}
-      >
-        {value}
-      </dd>
+    <div style={placeholderStyle}>
+      {transient && (
+        <p style={transientText}>
+          {state === 'connecting' && 'Reaching the relay…'}
+          {state === 'handshaking' && 'Securing channel…'}
+          {state === 'disconnected' && 'Lost connection — retrying.'}
+        </p>
+      )}
+      {state === 'failed' && (
+        <div style={errorBoxStyle} role="alert">
+          <p style={{ margin: 0, fontWeight: 500 }}>Couldn't reconnect</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+            {message ?? 'Try refreshing or re-pairing.'}
+          </p>
+        </div>
+      )}
     </div>
   )
-}
-
-function short(id: string): string {
-  return id.length > 16 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id
-}
-
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleString()
 }
 
 const pageStyle: React.CSSProperties = {
   maxWidth: 460,
   margin: '0 auto',
-  padding: '24px 16px 48px',
+  padding: '16px 16px 24px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 24,
+  gap: 12,
 }
 
-const dlStyle: React.CSSProperties = {
+const headerRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+}
+
+const placeholderStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 4,
-  margin: 0,
+  gap: 12,
+  minHeight: 240,
   padding: 16,
-  background: 'var(--color-bg-secondary)',
   borderRadius: 'var(--radius-card)',
+  background: 'var(--color-bg-overlay)',
+  alignItems: 'center',
+  justifyContent: 'center',
 }
 
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 2,
-  paddingBlock: 8,
-  borderBottom: '1px solid var(--color-border)',
-}
-
-const hintStyle: React.CSSProperties = {
+const transientText: React.CSSProperties = {
   margin: 0,
-  fontSize: 13,
-  color: 'var(--color-text-muted)',
-  lineHeight: 1.5,
+  fontSize: 14,
+  color: 'var(--color-text-secondary)',
 }
 
 const errorBoxStyle: React.CSSProperties = {
+  width: '100%',
   padding: 12,
   background: 'var(--color-diff-del-bg)',
   color: 'var(--color-diff-del-text)',
@@ -195,12 +171,13 @@ const errorBoxStyle: React.CSSProperties = {
 }
 
 const dangerButtonStyle: React.CSSProperties = {
-  padding: '12px 16px',
+  padding: '10px 14px',
   border: '1px solid var(--color-accent-red)',
   borderRadius: 'var(--radius-button)',
   background: 'transparent',
   color: 'var(--color-accent-red)',
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 500,
   cursor: 'pointer',
+  alignSelf: 'flex-start',
 }
