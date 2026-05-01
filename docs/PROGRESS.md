@@ -2,10 +2,10 @@
 
 > 当前进度与下次继续开工的准备信息。完整产品定位与阶段计划见 `docs/ROADMAP.md`。
 
-**最后更新**: 2026-05-01
-**当前分支**: `redesign`(v1 GA 时改名为 `main`),**领先 `airterm/redesign` 38 个 commit 未 push**
-**当前阶段**: Phase 1(7/7)✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5(15/15)✅** · **Phase 3 ✅** · **Phase 4 ✅(广播+渲染+输入+reconnect)** · **Phase 5 mobile ✅(vim/htop 可用)** · **Phase 6 PWA 可安装 ✅**
-**下次会话入口**:Phase 6 polish(SW、连接状态)或 Phase 7(签名/DMG/分发)
+**最后更新**: 2026-05-01(已 push,`91d02b7` = origin tip)
+**当前分支**: `redesign`(v1 GA 时改名为 `main`),**0 commit 未 push**(同步)
+**当前阶段**: Phase 1(7/7)✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5(15/15)✅** · **Phase 3 ✅** · **Phase 4 ✅** · **Phase 5 mobile ✅** · **Phase 6 PWA 可安装 + ConnectionManager ✅** · **Phase 7 大部分 ✅(只剩 Apple 签名 / DNS)**
+**下次会话入口**:跳到本文 "Phase 7 收尾 / 下一步" 一节
 
 ---
 
@@ -353,3 +353,48 @@ ROADMAP 原本 Phase 5 是"手机虚拟键盘 + 输入"。Phase 4 P4-Wire-Web-In
 - **Tab**：用 macOS 原生 `tabbingMode = .preferred`，不自己画
 - **传输（Phase 3+）**：WebRTC P2P DataChannel + TURN fallback（coturn）
 - **E2E 加密（Phase 3+）**：Noise Protocol IK
+
+---
+
+## Phase 7 · 稳定性 + 分发(2026-05-01 推完一大半)
+
+| 任务 | 状态 | commit |
+|---|---|---|
+| P7-PairedDevices Mac 管理 UI(forget) | ✅ | `09a9063` |
+| P7-CI lint 全修 + macos-14 swift build job | ✅ | `80a36ab` |
+| P7-DMG bundle.sh `--release` universal + dmg.sh | ✅ | `0c30916` |
+| P7-Release tag-driven release.yml + Dockerfile + fly.toml | ✅ | `24976c7` |
+| P7-WS-RateLimit relay 600 msg/10s 限流 | ✅ | `ba25a15` |
+| P7-README 重写 README + MIT LICENSE | ✅ | `e45854c` |
+| P7-Onboarding Mac 首启 welcome panel | ✅ | `1707eab` |
+| P7-PairCountdown TTL 倒计时 + 过期重生成 | ✅ | `b881cc6` |
+| P7-Server-Metrics /health/detailed + /metrics(Prom) | ✅ | `91d02b7` |
+| P7-Sign Apple Developer ID 签名 + 公证 | ⏳ | 需要 user 提供 Developer ID + app-specific password |
+| P7-Web-Domain Cloudflare Pages → airterm.ai DNS | ⏳ | 需要 user 操作 Cloudflare 控制台 |
+
+---
+
+## 下一步(下次会话起步)
+
+**全产品端到端可跑 + 可分发**:Mac 终端、Phone PWA、Relay Server、CI、DMG、Docker / fly.toml 全齐。
+
+**剩下两件需用户凭据/操作**:
+
+1. **Apple Developer ID 签名 + 公证**(Mac App)
+   - 现状:bundle.sh ad-hoc 签了,用户首次打开会有 Gatekeeper 警告。
+   - 待办:用户给 Apple Team ID + Developer ID Application 证书 + app-specific password,然后写 `release-sign.yml` (跑 `xcrun notarytool submit --wait`)。
+2. **域名 + DNS**(Web)
+   - 现状:`.github/workflows/ci.yml` 已有 Cloudflare Pages 部署 step(deploy-web job,只在 main push 触发)。需要 user 在 Cloudflare 创建 `airterm` Pages 项目 + 配 `airterm.ai` DNS + 把 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 加进 GitHub Secrets。
+
+**剩下可自走的 polish backlog(不需用户凭据)**:
+- 自动化端到端 E2E 测试(playwright web + Mac 模拟)
+- Server graceful shutdown(SIGTERM 后给 WS 客户端 1000 close 而不是 abrupt)
+- Mac Settings 窗口(目前 config 只能编辑 toml)
+- Web error boundary
+- iOS keyboard 第二行(F1-F12 / Cmd 等)
+- TURN 服务器配置(`packages/turn-deploy` 还没写)
+- 真 WebRTC P2P 替代 WS relay(libwebrtc Swift + RTCPeerConnection)
+
+**测试规模**:154 tests across protocol(36)/ crypto(30)/ web(38)/ server(50)。
+
+**Build 规模**:web vite production 295 KB / 95 KB gzipped;Mac swift build < 2s;server Docker 多 stage;DMG bzip2 压缩。
