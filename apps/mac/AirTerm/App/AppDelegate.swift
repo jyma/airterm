@@ -4,6 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: TerminalWindow?
     private var pairingWindow: PairingWindow?
     private var pairedDevicesWindow: PairedDevicesWindow?
+    private var welcomePanel: WelcomePanel?
     /// Live takeover sessions keyed by phoneDeviceId. The window keeps
     /// running after PairingWindow is dismissed; tearing one down only
     /// happens when the phone says bye, the WS dies, or the user
@@ -49,6 +50,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // its Noise reconnect handshake in the background. The
         // listener is a no-op until a phone shows up.
         bootPairingCoordinator()
+
+        // First-launch welcome — surfaces the keyboard shortcuts a new
+        // user can't discover from the visible chrome alone. Skipped on
+        // every subsequent launch via a UserDefaults flag.
+        if WelcomePanel.shouldShow {
+            // Defer one tick so the main window is fully on-screen
+            // before we anchor the panel to its frame.
+            DispatchQueue.main.async { [weak self] in
+                let panel = WelcomePanel()
+                panel.present(over: self?.window)
+                self?.welcomePanel = panel
+            }
+        }
     }
 
     /// Stand up (or rebuild) the background reconnect listener. Called
