@@ -1,0 +1,58 @@
+# fly.io configuration for the AirTerm relay server.
+#
+# Deploy:
+#   cd apps/server
+#   fly launch --no-deploy --copy-config   # first time only
+#   fly deploy
+#
+# The relay holds a SQLite-backed device + pair table; the volume below
+# persists it across deploys. Fly auto-mounts under `/data` on launch.
+#
+# WebSocket upgrades work through fly-proxy unchanged — `internal_port`
+# is HTTP/1.1 and the Hono server handles the upgrade handshake itself.
+
+app = "airterm-relay"
+primary_region = "lax"          # West-coast US for Mac dev box / phone latency.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  AIRTERM_DB_PATH = "/data/airterm.db"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+  auto_stop_machines = "stop"   # power-down idle machines (free-tier friendly).
+  auto_start_machines = true
+  min_machines_running = 0      # cold-start ~1.5s — acceptable for a pairing relay.
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 200
+    hard_limit = 500
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
+
+[[mounts]]
+  source = "airterm_data"
+  destination = "/data"

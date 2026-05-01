@@ -1,0 +1,12 @@
+node_modules
+dist
+.turbo
+.env
+.env.*
+*.log
+*.sqlite
+*.db
+__tests__
+src/__tests__
+.git
+.github
