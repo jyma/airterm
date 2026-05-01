@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QRScanner, type QRScannerError } from '../components/QRScanner'
 import { TakeoverViewer } from '../components/TakeoverViewer'
+import { PWAInstallHint } from '../components/PWAInstallHint'
 import { PairClientError } from '../lib/pair-client'
 import { runPhonePairFlow, type PairFlowResult } from '../lib/pair-flow'
 import { storePairing } from '../lib/storage'
@@ -80,6 +81,7 @@ export function PairPage() {
 
   return (
     <main style={pageStyle}>
+      <PWAInstallHint inline />
       <header style={headerStyle}>
         <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Pair with your Mac</h1>
         <p style={subtitleStyle}>
