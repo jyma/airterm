@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-30
 **当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover MVP 数据面闭合 ✅(Mac 广播 + Phone 渲染 + Phone 输入)**
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover ✅(广播+渲染+输入+reconnect)** · **Phase 5 mobile 工具栏 ✅(vim/htop 可用)**
 **下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
 
 ---
@@ -308,6 +308,18 @@ open apps/mac/build/AirTerm.app
 - ⏳ **P4.x** 切 WebRTC P2P 替代 WS relay(libwebrtc Swift + 浏览器原生 RTCPeerConnection;SDP/ICE 已经有 schema)
 
 **Phase 4 MVP 数据面闭合 ✅**:Mac 30Hz 广播 → phone DOM grid 实时渲染 → phone 键盘 → InputEvent → Mac PTY。全程经 Noise transport 加密,relay 看不见明文。
+
+---
+
+## Phase 5 · 手机接管输入(进行中)
+
+ROADMAP 原本 Phase 5 是"手机虚拟键盘 + 输入"。Phase 4 P4-Wire-Web-Input 已经做了基础键映射;Phase 5 这里追加移动端可用性。
+
+- ✅ **P5-Mobile-Input** Phone 软键盘 + 终端控制工具栏(`915a917`)
+  - `MobileKeyToolbar.tsx`:Esc / Tab / Ctrl(latch)/ ↑↓←→ 7 键沿底,respect `env(safe-area-inset-bottom)` 避 iOS 手势条
+  - `TakeoverViewer.tsx`:1×1 隐藏 `<input>` 触发 iOS 软键盘;`beforeinput` 处理 insertText / IME composition / insertLineBreak / deleteContentBackward / deleteContentForward;`keydown` 仍处理 hardware 键;font-size 16px 防 iOS auto-zoom
+  - Ctrl latch:读 ref(不读 state)避免 re-render race;tap Ctrl + tap c 立刻发 0x03
+  - 效果:phone 上能跑 vim / htop / Ctrl-C 了
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
