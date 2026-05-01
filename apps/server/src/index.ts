@@ -59,7 +59,7 @@ app.use('*', async (c, next) => {
   c.header('Referrer-Policy', 'no-referrer')
 })
 
-app.route('/', createHealthRoutes())
+app.route('/', createHealthRoutes({ devices, pairs, wsManager }))
 app.route('/', createPairRoutes({ devices, pairs, tokenService, config, wsManager }))
 app.route('/', createAuthRoutes({ jwtService, devices }))
 

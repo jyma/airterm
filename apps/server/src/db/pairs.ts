@@ -21,6 +21,8 @@ export interface PairRepository {
   incrementAttempts(id: string): void
   expire(id: string): void
   isPaired(macId: string, phoneId: string): boolean
+  /** Counts of pair rows by status. Used by /metrics. */
+  countByStatus(): { pending: number; completed: number; expired: number }
 }
 
 export function createPairRepository(db: Database.Database): PairRepository {
@@ -44,6 +46,9 @@ export function createPairRepository(db: Database.Database): PairRepository {
   const expireStmt = db.prepare("UPDATE pairs SET status = 'expired' WHERE id = ?")
   const isPairedStmt = db.prepare<[string, string], { count: number }>(
     "SELECT COUNT(*) as count FROM pairs WHERE mac_device_id = ? AND phone_device_id = ? AND status = 'completed'",
+  )
+  const countByStatusStmt = db.prepare<[], { status: string; n: number }>(
+    'SELECT status, COUNT(*) AS n FROM pairs GROUP BY status'
   )
 
   return {
@@ -83,6 +88,16 @@ export function createPairRepository(db: Database.Database): PairRepository {
     isPaired(macId, phoneId) {
       const row = isPairedStmt.get(macId, phoneId)
       return (row?.count ?? 0) > 0
+    },
+
+    countByStatus() {
+      const out = { pending: 0, completed: 0, expired: 0 }
+      for (const row of countByStatusStmt.all()) {
+        if (row.status === 'pending' || row.status === 'completed' || row.status === 'expired') {
+          out[row.status] = row.n
+        }
+      }
+      return out
     },
   }
 }

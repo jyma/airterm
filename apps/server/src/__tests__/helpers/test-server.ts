@@ -37,7 +37,7 @@ export function startTestServer(): Promise<TestServer> {
 
     const app = new Hono()
     app.use('*', cors())
-    app.route('/', createHealthRoutes())
+    app.route('/', createHealthRoutes({ devices, pairs, wsManager }))
     app.route('/', createPairRoutes({ devices, pairs, tokenService, config, wsManager }))
 
     const wss = new WebSocketServer({ noServer: true })

@@ -16,6 +16,8 @@ export interface DeviceRepository {
   updateToken(id: string, token: string): void
   updateLastSeen(id: string): void
   delete(id: string): boolean
+  /** Count of devices per role. Used by /metrics. */
+  countByRole(): { mac: number; phone: number }
 }
 
 export function createDeviceRepository(db: Database.Database): DeviceRepository {
@@ -27,6 +29,9 @@ export function createDeviceRepository(db: Database.Database): DeviceRepository 
     'UPDATE devices SET last_seen_at = unixepoch() WHERE id = ?',
   )
   const deleteStmt = db.prepare('DELETE FROM devices WHERE id = ?')
+  const countByRoleStmt = db.prepare<[], { role: string; n: number }>(
+    "SELECT role, COUNT(*) AS n FROM devices GROUP BY role"
+  )
 
   return {
     findById(id) {
@@ -53,6 +58,16 @@ export function createDeviceRepository(db: Database.Database): DeviceRepository 
     delete(id) {
       const result = deleteStmt.run(id)
       return result.changes > 0
+    },
+
+    countByRole() {
+      const out = { mac: 0, phone: 0 }
+      for (const row of countByRoleStmt.all()) {
+        if (row.role === 'mac' || row.role === 'phone') {
+          out[row.role] = row.n
+        }
+      }
+      return out
     },
   }
 }

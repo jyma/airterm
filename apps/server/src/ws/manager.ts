@@ -16,6 +16,8 @@ export interface WSManager {
   sendToDevice(deviceId: string, data: unknown): boolean
   getConnectedDevice(deviceId: string): ConnectedDevice | undefined
   getConnectionCount(): number
+  /** Counts of currently-open WS connections per role. Used by /metrics. */
+  getConnectionsByRole(): { mac: number; phone: number }
   startHeartbeat(): void
   stopHeartbeat(): void
   closeAll(): void
@@ -183,6 +185,13 @@ export function createWSManager(deps: WSManagerDeps): WSManager {
     },
     getConnectionCount() {
       return connections.size
+    },
+    getConnectionsByRole() {
+      const out = { mac: 0, phone: 0 }
+      for (const c of connections.values()) {
+        if (c.role === 'mac' || c.role === 'phone') out[c.role] += 1
+      }
+      return out
     },
     startHeartbeat,
     stopHeartbeat,
