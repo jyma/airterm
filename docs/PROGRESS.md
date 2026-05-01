@@ -2,10 +2,10 @@
 
 > 当前进度与下次继续开工的准备信息。完整产品定位与阶段计划见 `docs/ROADMAP.md`。
 
-**最后更新**: 2026-04-30
-**当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover ✅(广播+渲染+输入+reconnect)** · **Phase 5 mobile 工具栏 ✅(vim/htop 可用)**
-**下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
+**最后更新**: 2026-05-01
+**当前分支**: `redesign`(v1 GA 时改名为 `main`),**领先 `airterm/redesign` 38 个 commit 未 push**
+**当前阶段**: Phase 1(7/7)✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5(15/15)✅** · **Phase 3 ✅** · **Phase 4 ✅(广播+渲染+输入+reconnect)** · **Phase 5 mobile ✅(vim/htop 可用)** · **Phase 6 PWA 可安装 ✅**
+**下次会话入口**:Phase 6 polish(SW、连接状态)或 Phase 7(签名/DMG/分发)
 
 ---
 
