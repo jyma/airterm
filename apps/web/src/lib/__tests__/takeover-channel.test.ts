@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   HandshakeState,
   generateNoiseKeyPair,
-  type CipherState,
   type HandshakeResult,
 } from '@airterm/crypto'
 import {

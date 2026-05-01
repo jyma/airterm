@@ -51,8 +51,11 @@ export class TakeoverChannel {
   private readonly send: CipherState
   private readonly receive: CipherState
   private readonly sendSignaling: (msg: SignalingMessage) => void
-  private readonly onFrame: (frame: TakeoverFrame) => void
-  private readonly onError: (error: TakeoverChannelError) => void
+  /// Mutable so a long-lived owner (TakeoverViewer mounting / unmounting)
+  /// can install a `[weak self]`-style handler after construction without
+  /// a fragile init-order dance. Mirrors the Swift side.
+  onFrame: (frame: TakeoverFrame) => void
+  onError: (error: TakeoverChannelError) => void
   private outboundSeq = 0
   private lastIncomingSeq = -1
   private closed = false

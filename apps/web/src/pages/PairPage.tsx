@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QRScanner, type QRScannerError } from '../components/QRScanner'
+import { TakeoverViewer } from '../components/TakeoverViewer'
 import { PairClientError } from '../lib/pair-client'
-import { runPhonePairFlow } from '../lib/pair-flow'
+import { runPhonePairFlow, type PairFlowResult } from '../lib/pair-flow'
 import { storePairing } from '../lib/storage'
 
 type Mode = 'scan' | 'manual'
@@ -10,6 +11,7 @@ type Status =
   | { kind: 'idle' }
   | { kind: 'pairing' }
   | { kind: 'error'; message: string }
+  | { kind: 'takeover'; pair: PairFlowResult }
 
 /// Entry point for unpaired users. Two paths:
 ///   1. **Scan QR** — camera + BarcodeDetector (preferred path on phones)
@@ -26,12 +28,16 @@ export function PairPage() {
 
   const handleResult = useCallback(
     async (rawText: string) => {
-      if (status.kind === 'pairing') return
+      if (status.kind === 'pairing' || status.kind === 'takeover') return
       setStatus({ kind: 'pairing' })
       try {
-        const info = await runPhonePairFlow(rawText)
-        storePairing(info)
-        navigate('/paired', { replace: true })
+        const result = await runPhonePairFlow(rawText)
+        storePairing(result.pairingInfo)
+        // Stay on this page — render the live takeover viewer with
+        // the warm channel so the user sees Mac frames immediately.
+        // Refreshing the page drops the in-memory channel; the user
+        // would have to re-pair (Phase 4.x adds reconnect-from-token).
+        setStatus({ kind: 'takeover', pair: result })
       } catch (e) {
         const message =
           e instanceof PairClientError
@@ -42,8 +48,35 @@ export function PairPage() {
         setStatus({ kind: 'error', message })
       }
     },
-    [navigate, status.kind]
+    [status.kind]
   )
+
+  if (status.kind === 'takeover') {
+    return (
+      <main style={pageStyle}>
+        <header style={headerStyle}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
+            Mirroring {status.pair.pairingInfo.targetName}
+          </h1>
+          <p style={subtitleStyle}>
+            Live frames from your Mac — keyboard input lands in a later
+            slice. Refresh to re-pair.
+          </p>
+        </header>
+        <TakeoverViewer channel={status.pair.channel} />
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+          onClick={() => {
+            try { status.pair.ws.disconnect() } catch { /* may be closed */ }
+            navigate('/paired', { replace: true })
+          }}
+        >
+          Stop mirroring
+        </button>
+      </main>
+    )
+  }
 
   return (
     <main style={pageStyle}>
