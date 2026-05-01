@@ -4,7 +4,7 @@
 
 **最后更新**: 2026-04-30
 **当前分支**: `redesign`（v1 GA 时改名为 `main`），HEAD @ `3eac616`，**领先 `airterm/redesign` 2 个 commit 未 push**
-**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover 数据面起步**(schema + 双端 channel + E2E 测试 ✅,wire 落地中)
+**当前阶段**: Phase 1（7/7）✅ · Phase 2 ✅ · Phase 1 瑕疵扫尾 ✅ · **Phase 2.5 UI 重设计完成（15/15）✅** · **Phase 3 信令 + 配对 ✅** · **Phase 4 takeover MVP 数据面闭合 ✅(Mac 广播 + Phone 渲染 + Phone 输入)**
 **下次会话入口**: 直接进 Phase 3 — `Phase 3 · 信令 + 配对重建` 一节
 
 ---
@@ -297,9 +297,13 @@ open apps/mac/build/AirTerm.app
 - ✅ **P4-3** E2E 测试扩展(`0926a64`)— Noise 握手后再走 ScreenSnapshot(Mac→Phone) + InputEvent(Phone→Mac),全在 215ms
 
 **待办**:
-- ✅ **P4-Wire-Mac** TakeoverEncoder + TakeoverSession + AppDelegate 接管 RelayClient(`28fc074`)— Mac 端 30Hz 广播 ScreenSnapshot/Delta + 反向 InputEvent → PTY + Resize 处理。PairingHandoff 把 warm WS + 转发权交给 AppDelegate;PairingWindow 关闭不再断 WS。
-- ⏳ **P4-Wire-Web** /paired 加 xterm.js + TakeoverChannel onFrame → terminal.write;键盘事件 → InputEvent → channel.sendFrame
+- ✅ **P4-Wire-Mac** TakeoverEncoder + TakeoverSession + AppDelegate 接管 RelayClient(`28fc074`)— Mac 端 30Hz 广播 ScreenSnapshot/Delta + 反向 InputEvent → PTY + Resize 处理
+- ✅ **P4-Wire-Web** TakeoverViewer DOM grid + PairPage handoff(`a9b94d1`)— phone 实时渲染 cell 网格,无 xterm.js,直接读 CellFrame 走 React DOM
+- ✅ **P4-Wire-Web-Input** 键盘 → InputEvent(`9cfe963`)— keyToBytes 映射所有终端键(printable / 名键 / Ctrl-letter / Alt-letter),phone 输入直达 Mac PTY,19 tests
+- ⏳ **P4-Reconnect** 刷新页面后 phone 重新走 Noise 握手(用 stored token + identity)+ Mac 后台 RelayClient 自动 listen 已配对 phone 的握手请求
 - ⏳ **P4.x** 切 WebRTC P2P 替代 WS relay(libwebrtc Swift + 浏览器原生 RTCPeerConnection;SDP/ICE 已经有 schema)
+
+**Phase 4 MVP 数据面闭合 ✅**:Mac 30Hz 广播 → phone DOM grid 实时渲染 → phone 键盘 → InputEvent → Mac PTY。全程经 Noise transport 加密,relay 看不见明文。
 
 **核心决策已锁定**:WebRTC P2P DataChannel + TURN fallback(coturn);E2E Noise IK。
 
