@@ -2,6 +2,7 @@ import type { WebSocket } from 'ws'
 import type { TokenService } from '../auth/token.js'
 import type { DeviceRepository } from '../db/devices.js'
 import type { PairRepository } from '../db/pairs.js'
+import { createRateLimiter } from '../utils/rate-limit.js'
 
 export interface ConnectedDevice {
   readonly ws: WebSocket
@@ -29,9 +30,21 @@ export interface WSManagerDeps {
 const HEARTBEAT_INTERVAL = 30_000
 const HEARTBEAT_TIMEOUT = 90_000
 
+/// Rate-limit per WS connection: 600 relay messages per 10 s window.
+///
+/// Sustained budget: 60 msg/s. Phase 4's takeover stream peaks at
+/// 30 Hz screen frames + bursty phone input + occasional pings,
+/// well below this. The limit exists to bound a misbehaving (or
+/// hostile) endpoint that floods the relay before the pair gate
+/// can kick in — without a rate cap a single phone could DoS the
+/// Mac it's paired with by spamming InputEvent frames at line rate.
+const WS_RELAY_MAX_MSGS = 600
+const WS_RELAY_WINDOW_MS = 10_000
+
 export function createWSManager(deps: WSManagerDeps): WSManager {
   const connections = new Map<string, ConnectedDevice>()
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  const relayLimiter = createRateLimiter(WS_RELAY_MAX_MSGS, WS_RELAY_WINDOW_MS)
 
   function handleConnection(ws: WebSocket, token: string): void {
     const payload = deps.tokenService.verify(token)
@@ -87,6 +100,17 @@ export function createWSManager(deps: WSManagerDeps): WSManager {
     }
 
     if (data.type === 'relay' && data.to) {
+      // Per-connection rate limit. Keyed by deviceId (not socket
+      // identity) so a flood that triggers a reconnect doesn't get a
+      // free fresh budget on the new socket. Drop excess + tell the
+      // sender so a debug log surfaces the throttle.
+      if (!relayLimiter.check(sender.deviceId)) {
+        sender.ws.send(JSON.stringify({
+          error: 'Rate limit exceeded',
+          code: 4029,
+        }))
+        return
+      }
       relayMessage(sender, data.to, raw)
     }
   }
