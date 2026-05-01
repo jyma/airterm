@@ -14,6 +14,7 @@ import {
 } from '@airterm/protocol'
 import type { TakeoverChannel } from '../lib/takeover-channel'
 import { bytesToBase64, keyToBytes } from '../lib/key-mapper'
+import { MobileKeyToolbar } from './MobileKeyToolbar'
 
 /// Phone-side terminal mirror. Subscribes to inbound TakeoverFrames
 /// from a live `TakeoverChannel` and renders the cell grid as a stack
@@ -106,8 +107,11 @@ export function TakeoverViewer({
     emptyState(initialRows, initialCols)
   )
   const [keysSent, setKeysSent] = useState(0)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [ctrlArmed, setCtrlArmed] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const inputSeqRef = useRef(0)
+  const ctrlArmedRef = useRef(false)
+  ctrlArmedRef.current = ctrlArmed
 
   useEffect(() => {
     channel.onFrame = (frame) => {
@@ -124,13 +128,10 @@ export function TakeoverViewer({
     }
   }, [channel])
 
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const bytes = keyToBytes(event.nativeEvent)
-      if (!bytes) return
-      // Block the browser default ONLY when we recognised the key —
-      // otherwise the user can't shift-tab out of the viewer.
-      event.preventDefault()
+  /// Sends arbitrary bytes through the channel as one InputEventFrame.
+  const sendBytes = useCallback(
+    (bytes: Uint8Array) => {
+      if (bytes.length === 0) return
       try {
         channel.sendFrame({
           kind: 'input_event',
@@ -139,42 +140,160 @@ export function TakeoverViewer({
         })
         setKeysSent((n) => n + 1)
       } catch {
-        // Channel closed — silently ignore; the parent route will
-        // navigate away when WS dies.
+        // Channel closed — UI will unmount.
       }
     },
     [channel]
   )
 
-  // Auto-focus on mount so users can start typing immediately on
-  // desktop. On phones, the visible keyboard pops up only after the
-  // user taps the surface anyway, so this is a no-op there.
+  /// Apply the Ctrl latch to a single character. Returns the
+  /// original bytes when the latch isn't armed (or when the char
+  /// can't form a valid C0 control byte).
+  const applyCtrlIfArmed = useCallback((bytes: Uint8Array, ch: string): Uint8Array => {
+    if (!ctrlArmedRef.current || ch.length !== 1) return bytes
+    const code = ch.toLowerCase().charCodeAt(0)
+    if (code >= 0x60 && code <= 0x7f) {
+      setCtrlArmed(false)
+      return new Uint8Array([code & 0x1f])
+    }
+    const upper = ch.toUpperCase().charCodeAt(0)
+    if (upper >= 0x40 && upper <= 0x5f) {
+      setCtrlArmed(false)
+      return new Uint8Array([upper & 0x1f])
+    }
+    return bytes
+  }, [])
+
+  /// Desktop / hardware-keyboard path. iOS Safari delivers most printable
+  /// keys here too when a Bluetooth keyboard is attached, but soft-keyboard
+  /// text comes through `beforeinput` instead — see handleBeforeInput.
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      let bytes = keyToBytes(event.nativeEvent)
+      if (!bytes) return
+      bytes = applyCtrlIfArmed(bytes, event.key)
+      event.preventDefault()
+      sendBytes(bytes)
+    },
+    [sendBytes, applyCtrlIfArmed]
+  )
+
+  /// iOS soft-keyboard path. `beforeinput` fires before the input
+  /// element's value mutates; we read `data` (the inserted text)
+  /// or `inputType` (deleteContentBackward, insertLineBreak) and
+  /// translate to terminal bytes. preventDefault keeps the input's
+  /// value from accumulating so we never have to clear it.
+  const handleBeforeInput = useCallback(
+    (event: React.FormEvent<HTMLInputElement>) => {
+      const native = event.nativeEvent as InputEvent
+      event.preventDefault()
+      switch (native.inputType) {
+        case 'insertText':
+        case 'insertCompositionText': {
+          const text = native.data ?? ''
+          if (!text) return
+          // Apply Ctrl latch to the FIRST char only — multi-char IME
+          // strings (CJK composition commit) shouldn't all be Ctrl-X'd.
+          const first = text[0]
+          const rest = text.slice(1)
+          const firstBytes = applyCtrlIfArmed(new TextEncoder().encode(first), first)
+          if (rest.length === 0) {
+            sendBytes(firstBytes)
+          } else {
+            const restBytes = new TextEncoder().encode(rest)
+            const out = new Uint8Array(firstBytes.length + restBytes.length)
+            out.set(firstBytes, 0)
+            out.set(restBytes, firstBytes.length)
+            sendBytes(out)
+          }
+          return
+        }
+        case 'insertLineBreak':
+        case 'insertParagraph':
+          sendBytes(new Uint8Array([0x0d]))
+          return
+        case 'deleteContentBackward':
+          sendBytes(new Uint8Array([0x7f]))
+          return
+        case 'deleteContentForward':
+          sendBytes(new TextEncoder().encode('\x1b[3~'))
+          return
+        default:
+          // insertReplacementText, deleteByCut, etc — skip silently.
+          return
+      }
+    },
+    [sendBytes, applyCtrlIfArmed]
+  )
+
+  const focusInput = useCallback(() => inputRef.current?.focus(), [])
+
+  // Desktop: focus immediately so users can type. iPhones / iPads
+  // need a real user gesture before the soft keyboard is allowed
+  // to pop, so the focus call is a no-op until the user taps.
   useEffect(() => {
-    containerRef.current?.focus()
+    inputRef.current?.focus()
   }, [])
 
   return (
     <section style={containerStyle}>
       {state.title && <header style={titleStyle}>{state.title}</header>}
-      <div
-        ref={containerRef}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        style={focusableStyle}
-      >
+      <div onClick={focusInput} style={gridContainerStyle}>
         <Grid state={state} />
+        {/* Hidden input draws the soft keyboard on iOS Safari. */}
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          onKeyDown={handleKeyDown}
+          onBeforeInput={handleBeforeInput}
+          aria-label="Terminal input"
+          style={hiddenInputStyle}
+        />
       </div>
+      <MobileKeyToolbar
+        channel={channel}
+        onSend={() => setKeysSent((n) => n + 1)}
+        ctrlArmed={ctrlArmed}
+        onCtrlArmedChange={setCtrlArmed}
+      />
       <footer style={footerStyle}>
         {state.framesReceived === 0
           ? 'Waiting for Mac to start broadcasting…'
-          : `${state.cols}×${state.rows} · ${state.framesReceived} frames in · ${keysSent} keys out`}
+          : `${state.cols}×${state.rows} · ${state.framesReceived} in · ${keysSent} out${ctrlArmed ? ' · Ctrl armed' : ''}`}
       </footer>
     </section>
   )
 }
 
-const focusableStyle: React.CSSProperties = {
-  outline: 'none',
+const gridContainerStyle: React.CSSProperties = {
+  position: 'relative',
+  cursor: 'text',
+}
+
+/// Off-screen-but-focusable input that draws the iOS soft keyboard.
+/// Position absolute + opacity 0 leaves the visual layout intact;
+/// 1px box keeps it in the visible viewport so iOS doesn't scroll
+/// the whole page when the user taps.
+const hiddenInputStyle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 0,
+  left: 0,
+  width: 1,
+  height: 1,
+  border: 0,
+  padding: 0,
+  margin: 0,
+  opacity: 0,
+  pointerEvents: 'none',
+  // No background so it never paints over the grid.
+  background: 'transparent',
+  // Prevent zoom-on-focus on iOS Safari (any font-size <16 triggers).
+  fontSize: 16,
 }
 
 interface GridProps {
