@@ -39,7 +39,13 @@ final class PairingWindow: NSPanel {
     private let helperLabel = NSTextField(labelWithString: "")
     private let serverLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton(title: "Close", target: nil, action: nil)
+    /// Visible only while a pair code is live. Counts the seconds left
+    /// until the server-side TTL expires, then flips the panel into
+    /// the "expired — generate a new code" state.
+    private let countdownLabel = NSTextField(labelWithString: "")
+    private let regenerateButton = NSButton(title: "New Pair Code", target: nil, action: nil)
     private var configToken: UUID?
+    private var countdownTimer: Timer?
     /// WS connection opened after /api/pair/init succeeds. Listens for the
     /// server's `pair_completed` notification and mutates the panel from
     /// "Waiting" → "Paired with <phone>!". Torn down on panel close so we
@@ -91,6 +97,8 @@ final class PairingWindow: NSPanel {
 
     deinit {
         if let token = configToken { ConfigStore.shared.unsubscribe(token) }
+        countdownTimer?.invalidate()
+        countdownTimer = nil
         // Tear down the WS via direct disconnect rather than `teardownRelay()`
         // so we don't touch UI labels (`lastPairInfo = nil` is intentional
         // there, but isn't necessary here since the panel is going away).
@@ -350,12 +358,28 @@ final class PairingWindow: NSPanel {
         serverLabel.stringValue = ""
         content.addSubview(serverLabel)
 
-        closeButton.frame = NSRect(x: 140, y: 18, width: 100, height: 28)
+        countdownLabel.frame = NSRect(x: 20, y: 108, width: 340, height: 14)
+        countdownLabel.alignment = .center
+        countdownLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        countdownLabel.textColor = .tertiaryLabelColor
+        countdownLabel.stringValue = ""
+        content.addSubview(countdownLabel)
+
+        closeButton.frame = NSRect(x: 200, y: 18, width: 100, height: 28)
         closeButton.bezelStyle = .rounded
         closeButton.target = self
         closeButton.action = #selector(closeClicked)
         closeButton.keyEquivalent = "\u{1B}"  // Esc
         content.addSubview(closeButton)
+
+        // "New Pair Code" appears next to Close once the previous code
+        // has expired. Stays hidden until the countdown hits 0.
+        regenerateButton.frame = NSRect(x: 80, y: 18, width: 110, height: 28)
+        regenerateButton.bezelStyle = .rounded
+        regenerateButton.target = self
+        regenerateButton.action = #selector(regenerateClicked)
+        regenerateButton.isHidden = true
+        content.addSubview(regenerateButton)
     }
 
     private func applyTheme(_ theme: Theme) {
@@ -381,14 +405,74 @@ final class PairingWindow: NSPanel {
         pairCodeLabel.stringValue = pairCode
         statusLabel.stringValue = "Waiting for phone…"
         serverLabel.stringValue = "Scan or enter the code on the AirTerm web app"
+        regenerateButton.isHidden = true
+        qrImageView.alphaValue = 1
         if let img = Self.makeQRImage(payload: json, sizePoints: 280) {
             qrImageView.image = img
         } else {
             statusLabel.stringValue = "QR rendering failed — use the pair code instead"
         }
+        startCountdown()
+    }
+
+    /// Drives the countdown label from `lastPairInfo.expiresAt`. Updates
+    /// every second so users see the runway shrink instead of staring
+    /// at a stale QR for several minutes after the server-side TTL
+    /// already expired. Called on each populateQR + restarts on
+    /// `regenerateClicked`.
+    private func startCountdown() {
+        countdownTimer?.invalidate()
+        guard let info = lastPairInfo else {
+            countdownLabel.stringValue = ""
+            return
+        }
+        // PairInfo.expiresAt arrives as a unix-seconds Int from the
+        // server. Refresh once now so the user doesn't see "0:00" for
+        // the first second after a populateQR.
+        renderCountdown(expiresAt: info.expiresAt)
+        countdownTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0, repeats: true
+        ) { [weak self] _ in
+            guard let self, let info = self.lastPairInfo else { return }
+            self.renderCountdown(expiresAt: info.expiresAt)
+        }
+    }
+
+    private func renderCountdown(expiresAt: Int) {
+        let now = Int(Date().timeIntervalSince1970)
+        let remaining = expiresAt - now
+        if remaining > 0 {
+            let m = remaining / 60
+            let s = remaining % 60
+            countdownLabel.stringValue = String(format: "Pair code expires in %d:%02d", m, s)
+            countdownLabel.textColor = remaining < 30
+                ? .systemOrange
+                : .tertiaryLabelColor
+        } else {
+            countdownTimer?.invalidate()
+            countdownTimer = nil
+            countdownLabel.stringValue = "Pair code expired."
+            countdownLabel.textColor = .systemRed
+            // Visually invalidate the QR so the user doesn't keep
+            // pointing a phone at it; the regenerate button below
+            // gets them a fresh one without closing the panel.
+            qrImageView.alphaValue = 0.25
+            statusLabel.stringValue = "Tap New Pair Code to try again."
+            regenerateButton.isHidden = false
+        }
+    }
+
+    @objc private func regenerateClicked() {
+        // Re-running startPairing produces a fresh /api/pair/init →
+        // pair code → QR + new countdown. teardownRelay inside
+        // startPairing handles the old WS so we don't pile up
+        // sockets on each retry.
+        startPairing()
     }
 
     @objc private func closeClicked() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
         teardownRelay()
         orderOut(nil)
     }
